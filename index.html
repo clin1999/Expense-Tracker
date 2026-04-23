@@ -250,6 +250,121 @@ select:focus{outline:none;border-color:var(--accent)}
 .trend-down{color:var(--accent);background:var(--accent-l)}
 .trend-neutral{color:var(--text3);background:var(--surface2)}
 
+/* DROP ZONE */
+#drop-zone {
+  border: 2px dashed var(--border2);
+  border-radius: 10px;
+  background: var(--surface2);
+  transition: border-color .2s, background .2s;
+  margin-bottom: .85rem;
+  cursor: pointer;
+}
+#drop-zone.drag-over {
+  border-color: var(--accent);
+  background: var(--accent-l);
+}
+#drop-zone.has-files {
+  border-color: var(--accent);
+  border-style: solid;
+  background: var(--accent-l);
+}
+#drop-inner {
+  padding: 2rem 1.5rem;
+  text-align: center;
+  user-select: none;
+}
+#drop-icon { font-size: 2rem; margin-bottom: .5rem; line-height: 1; }
+#drop-title { font-weight: 500; font-size: .95rem; color: var(--text); margin-bottom: 4px; }
+#drop-sub { font-size: .78rem; color: var(--text3); }
+.file-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px 4px 8px;
+  background: var(--accent-l); border: 1px solid var(--accent);
+  border-radius: 20px; font-family: 'DM Mono', monospace;
+  font-size: .68rem; color: var(--accent); margin-right: 6px; margin-bottom: 6px;
+}
+.file-chip button {
+  background: none; border: none; cursor: pointer; padding: 0;
+  color: var(--accent); font-size: .8rem; line-height: 1; opacity: .6;
+}
+.file-chip button:hover { opacity: 1; }
+
+/* WELCOME OVERLAY */
+#welcome-overlay {
+  position:fixed; inset:0; z-index:1000;
+  background:var(--bg);
+  display:flex; align-items:center; justify-content:center;
+  padding:1.5rem;
+}
+#welcome-overlay.hidden { display:none; }
+.welcome-box {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:2.5rem 2rem;
+  max-width:400px; width:100%;
+  text-align:center;
+}
+.welcome-box h2 {
+  font-family:'Playfair Display',serif;
+  font-size:1.6rem; font-weight:600;
+  letter-spacing:-0.02em;
+  margin-bottom:6px;
+}
+.welcome-box p {
+  font-size:.875rem; color:var(--text2);
+  margin-bottom:1.75rem; line-height:1.6;
+}
+.name-btns { display:flex; gap:.75rem; justify-content:center; margin-bottom:1.25rem; }
+.name-btn {
+  padding:.7rem 1.75rem;
+  border-radius:8px; border:1.5px solid var(--border2);
+  background:transparent; cursor:pointer;
+  font-family:'Playfair Display',serif;
+  font-size:1.1rem; color:var(--text);
+  transition:all .15s;
+}
+.name-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-l); }
+.name-btn.selected { border-color:var(--accent); background:var(--accent); color:#fff; }
+.other-name-row { display:flex; gap:8px; justify-content:center; }
+.other-name-row input {
+  padding:.5rem .85rem; border:1px solid var(--border2);
+  border-radius:6px; font-family:'DM Sans',sans-serif;
+  font-size:.875rem; color:var(--text); background:var(--surface2);
+  width:160px;
+}
+.other-name-row input:focus { outline:none; border-color:var(--accent); background:#fff; }
+
+/* USER PILL in nav */
+#user-pill {
+  margin-left:auto;
+  display:flex; align-items:center; gap:8px;
+  padding:.6rem 1rem;
+  font-family:'DM Mono',monospace;
+  font-size:.68rem; color:var(--text2);
+  cursor:pointer;
+  border-left:1px solid var(--border);
+}
+#user-pill:hover { color:var(--accent); }
+.user-avatar {
+  width:26px; height:26px; border-radius:50%;
+  background:var(--accent); color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-size:.75rem; font-weight:600;
+  font-family:'Playfair Display',serif;
+}
+
+/* ENTRY TAGS on history */
+.entry-tag {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:2px 8px; border-radius:20px;
+  font-family:'DM Mono',monospace; font-size:.62rem;
+  text-transform:uppercase; letter-spacing:.04em;
+}
+.tag-peter { background:var(--accent-l); color:var(--accent); }
+.tag-tony  { background:var(--blue-l); color:var(--blue); }
+.tag-other { background:var(--surface2); color:var(--text2); }
+
 @media(max-width:600px){
   nav{padding:0 1rem}
   .page{padding:1.25rem 1rem 4rem}
@@ -261,12 +376,33 @@ select:focus{outline:none;border-color:var(--accent)}
 </head>
 <body>
 
+<!-- WELCOME OVERLAY -->
+<div id="welcome-overlay">
+  <div class="welcome-box">
+    <div style="font-size:2rem;margin-bottom:.75rem">🏠</div>
+    <h2>15 Pakaraka Drive</h2>
+    <p>Who's using the app? We'll remember you next time.</p>
+    <div class="name-btns">
+      <button class="name-btn" onclick="selectName('Peter')">Peter</button>
+      <button class="name-btn" onclick="selectName('Tony')">Tony</button>
+    </div>
+    <div class="other-name-row">
+      <input type="text" id="other-name-input" placeholder="Someone else…" maxlength="20" onkeydown="if(event.key==='Enter')confirmOtherName()">
+      <button class="btn btn-secondary" onclick="confirmOtherName()">Go →</button>
+    </div>
+  </div>
+</div>
+
 <nav>
   <div class="nav-brand">15 Pakaraka Drive<span>Peter &amp; Tony</span></div>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
     <button class="nav-tab" onclick="showPage('categorise')">Categorise</button>
     <button class="nav-tab" onclick="showPage('history')">History</button>
+  </div>
+  <div id="user-pill" onclick="forgetUser()" title="Click to switch user">
+    <div class="user-avatar" id="user-avatar">?</div>
+    <span id="user-name-display">—</span>
   </div>
 </nav>
 
@@ -344,10 +480,31 @@ select:focus{outline:none;border-color:var(--accent)}
   <!-- Step 1 -->
   <div id="inner-step1" class="inner-section active">
     <div class="card">
-      <div class="info">Export your transactions from ASB internet banking for the month. Paste both your Streamline and Visa Platinum CSV exports together.</div>
-      <div class="card-label">Transaction data</div>
-      <textarea id="raw-data" placeholder="Paste your ASB CSV export here..."></textarea>
-      <div class="controls">
+      <div class="info">Export your transactions from ASB internet banking. You can drop one or both CSV files (Streamline + Credit Card) at once, or paste the text manually.</div>
+
+      <!-- Drop zone -->
+      <div id="drop-zone">
+        <input type="file" id="file-input" accept=".csv,.txt" multiple style="display:none">
+        <div id="drop-inner" onclick="document.getElementById('file-input').click()">
+          <div id="drop-icon">📂</div>
+          <div id="drop-title">Drop your ASB CSV files here</div>
+          <div id="drop-sub">or click to browse · accepts multiple files</div>
+        </div>
+      </div>
+      <div id="file-chips" style="display:none;margin-bottom:.75rem"></div>
+
+      <!-- Paste fallback toggle -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem">
+        <button class="btn btn-secondary" style="padding:.35rem .85rem;font-size:.65rem" onclick="togglePaste()">Or paste manually</button>
+        <span id="paste-loaded" style="display:none;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--accent)"></span>
+      </div>
+      <div id="paste-area" style="display:none">
+        <textarea id="raw-data" placeholder="Paste your ASB CSV export here..."></textarea>
+      </div>
+      <!-- Hidden raw-data clone for file path -->
+      <textarea id="raw-data-hidden" style="display:none"></textarea>
+
+      <div class="controls" style="margin-top:1rem">
         <select id="month-select">
           <option>Jan</option><option>Feb</option><option>Mar</option><option>Apr</option>
           <option>May</option><option>Jun</option><option>Jul</option><option>Aug</option>
@@ -511,8 +668,108 @@ let currentMonthKey = '';
 const monthNames2 = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 document.getElementById('month-select').value = monthNames2[new Date().getMonth() > 0 ? new Date().getMonth()-1 : 11];
 
+// ═══════════════════════════
+// DROP ZONE
+// ═══════════════════════════
+let loadedFileContents = [];
+
+function getRawData() {
+  // File drop takes priority, else textarea
+  if (loadedFileContents.length) return loadedFileContents.join('\n\n');
+  const ta = document.getElementById('raw-data');
+  return ta ? ta.value.trim() : '';
+}
+
+function togglePaste() {
+  const area = document.getElementById('paste-area');
+  area.style.display = area.style.display === 'none' ? 'block' : 'none';
+}
+
+function updateDropZone() {
+  const zone = document.getElementById('drop-zone');
+  const chips = document.getElementById('file-chips');
+  if (!loadedFileContents.length) {
+    zone.classList.remove('has-files');
+    chips.style.display = 'none';
+    document.getElementById('drop-title').textContent = 'Drop your ASB CSV files here';
+    document.getElementById('drop-sub').textContent = 'or click to browse · accepts multiple files';
+    return;
+  }
+  zone.classList.add('has-files');
+  document.getElementById('drop-icon').textContent = '✓';
+  document.getElementById('drop-title').textContent = `${loadedFileContents.length} file${loadedFileContents.length>1?'s':''} loaded`;
+  document.getElementById('drop-sub').textContent = 'Drop another file to add it, or click to replace';
+  chips.style.display = 'block';
+}
+
+function readFile(file) {
+  return new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = e => res({ name: file.name, content: e.target.result });
+    reader.onerror = rej;
+    reader.readAsText(file);
+  });
+}
+
+async function handleFiles(files) {
+  for (const file of Array.from(files)) {
+    if (!file.name.match(/\.(csv|txt)$/i)) continue;
+    const { name, content } = await readFile(file);
+    loadedFileContents.push(content);
+    addChip(name, loadedFileContents.length - 1);
+  }
+  updateDropZone();
+  // Auto-detect month/year from file content
+  const combined = loadedFileContents.join('\n');
+  const dateMatch = combined.match(/20(\d\d)\/(\d\d)\/\d\d/);
+  if (dateMatch) {
+    const months = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'May',6:'Jun',7:'Jul',8:'Aug',9:'Sep',10:'Oct',11:'Nov',12:'Dec'};
+    const yr = '20' + dateMatch[1];
+    const mo = months[parseInt(dateMatch[2])];
+    if (mo) document.getElementById('month-select').value = mo;
+    document.getElementById('year-select').value = yr;
+    document.getElementById('paste-loaded').style.display = 'inline';
+    document.getElementById('paste-loaded').textContent = `✓ Detected ${mo} ${yr}`;
+  }
+}
+
+function addChip(name, idx) {
+  const chips = document.getElementById('file-chips');
+  const chip = document.createElement('span');
+  chip.className = 'file-chip';
+  chip.id = `chip-${idx}`;
+  chip.innerHTML = `📄 ${name} <button onclick="removeFile(${idx})" title="Remove">×</button>`;
+  chips.appendChild(chip);
+}
+
+function removeFile(idx) {
+  loadedFileContents.splice(idx, 1);
+  document.getElementById('file-chips').innerHTML = '';
+  loadedFileContents.forEach((_, i) => addChip(`File ${i+1}`, i));
+  updateDropZone();
+}
+
+// Wire up drop zone events
+document.addEventListener('DOMContentLoaded', () => {
+  const zone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    handleFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', e => {
+    handleFiles(e.target.files);
+    fileInput.value = '';
+  });
+});
+
+
 function loadSample() {
-  document.getElementById('raw-data').value = `Card Number XXXX-XXXX-XXXX-0668 (Visa Platinum Rewards)
+  const sample = `Card Number XXXX-XXXX-XXXX-0668 (Visa Platinum Rewards)
 Date Processed,Date of Transaction,Unique Id,Tran Type,Reference,Description,Amount
 2026/03/01,2026/02/28,001,DEBIT,0668,SEQUEL CAFE AUCKLAND,37.19
 2026/03/01,2026/02/28,002,DEBIT,0668,AUCKLANDTRANSPORTPARKING AUCKLAND,11.50
@@ -532,13 +789,20 @@ Date,Unique Id,Tran Type,Cheque,Payee,Memo,Amount
 2026/03/06,014,D/D,,ASB Group Investment,Wealth Mgmt,-250.0
 2026/03/13,015,D/C,,D/C FROM CASS MEDICAL,CASS MEDICAL,5023.89
 2026/03/15,016,D/C,,D/C FROM MR T LIN,Tony contribution,612.50`;
+  // Show paste area and load sample into it
+  document.getElementById('paste-area').style.display = 'block';
+  document.getElementById('raw-data').value = sample;
+  // Clear any dropped files
+  loadedFileContents = [];
+  document.getElementById('file-chips').innerHTML = '';
+  updateDropZone();
   document.getElementById('month-select').value = 'Mar';
   document.getElementById('year-select').value = '2026';
 }
 
 function goToPrompt() {
-  const raw = document.getElementById('raw-data').value.trim();
-  if (!raw) { alert('Please paste your ASB data first.'); return; }
+  const raw = getRawData();
+  if (!raw) { alert('Please drop a CSV file or paste your ASB data first.'); return; }
   const m = document.getElementById('month-select').value;
   const y = document.getElementById('year-select').value;
   currentMonthKey = monthKey(m, y);
@@ -693,6 +957,7 @@ function saveCurrentMonth() {
   data[currentMonthKey] = {
     key: currentMonthKey,
     label: monthLabel(currentMonthKey),
+    savedBy: getCurrentUser(),
     transactions: categorisedResults,
     summary: {
       houseTotal, tonyContrib, peterContrib: houseTotal - tonyContrib,
@@ -709,6 +974,7 @@ function saveCurrentMonth() {
   };
   saveAllData(data);
   document.getElementById('save-confirm').style.display = 'inline';
+  document.getElementById('save-confirm').textContent = `✓ Saved for ${getCurrentUser()}!`;
 }
 
 // ═══════════════════════════
@@ -880,7 +1146,7 @@ function renderHistory() {
     const s = d.summary;
     return `<div class="month-entry">
       <div>
-        <div class="month-entry-name">${d.label}</div>
+        <div class="month-entry-name">${d.label} ${d.savedBy ? `<span class="entry-tag ${d.savedBy.toLowerCase()==='peter'?'tag-peter':d.savedBy.toLowerCase()==='tony'?'tag-tony':'tag-other'}">${d.savedBy}</span>` : ''}</div>
         <div class="month-entry-meta">House $${s.houseTotal.toFixed(0)} · Personal $${s.personalSpend.toFixed(0)} · Savings $${s.savings.toFixed(0)} · ${d.transactions.length} txns</div>
       </div>
       <div class="month-entry-actions">
@@ -900,8 +1166,52 @@ function deleteMonth(key) {
 }
 
 // ═══════════════════════════
+// USER IDENTITY
+// ═══════════════════════════
+const USER_KEY = 'pakaraka_user';
+
+function getCurrentUser() {
+  return localStorage.getItem(USER_KEY) || '';
+}
+
+function setCurrentUser(name) {
+  localStorage.setItem(USER_KEY, name);
+  updateUserPill(name);
+  document.getElementById('welcome-overlay').classList.add('hidden');
+  renderDashboard();
+}
+
+function updateUserPill(name) {
+  document.getElementById('user-name-display').textContent = name || '—';
+  document.getElementById('user-avatar').textContent = name ? name[0].toUpperCase() : '?';
+}
+
+function selectName(name) {
+  document.querySelectorAll('.name-btn').forEach(b => b.classList.remove('selected'));
+  event.target.classList.add('selected');
+  setTimeout(() => setCurrentUser(name), 200);
+}
+
+function confirmOtherName() {
+  const val = document.getElementById('other-name-input').value.trim();
+  if (val) setCurrentUser(val);
+}
+
+function forgetUser() {
+  if (!confirm('Switch user? Your saved data will stay — just your name will be cleared.')) return;
+  localStorage.removeItem(USER_KEY);
+  updateUserPill('');
+  document.getElementById('welcome-overlay').classList.remove('hidden');
+}
+
+// ═══════════════════════════
 // INIT
 // ═══════════════════════════
+const savedUser = getCurrentUser();
+if (savedUser) {
+  document.getElementById('welcome-overlay').classList.add('hidden');
+  updateUserPill(savedUser);
+} 
 renderDashboard();
 </script>
 </body>
