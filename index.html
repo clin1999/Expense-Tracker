@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>15 Pakaraka Drive — Expense Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f2eb;
+    --surface: #ffffff;
+    --surface2: #f0ece3;
+    --border: #ddd8ce;
+    --border2: #c8c2b5;
+    --text: #1a1814;
+    --text2: #6b6559;
+    --text3: #9e9789;
+    --accent: #2d5a3d;
+    --accent-light: #e8f0eb;
+    --accent2: #8b4a1c;
+    --accent2-light: #f5ebe0;
+    --red: #a32d2d;
+    --red-light: #fdf0f0;
+    --blue: #1a3d6b;
+    --blue-light: #e8eef5;
+    --amber: #7a4f10;
+    --amber-light: #faf3e0;
+    --purple: #4a2d7a;
+    --purple-light: #f0eaf8;
+    --teal: #0f5a4a;
+    --teal-light: #e5f2ef;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  /* Header */
+  header {
+    background: var(--accent);
+    color: #fff;
+    padding: 1.5rem 2rem;
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  header h1 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: #fff;
+  }
+  header span {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.55);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  /* Layout */
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 1.5rem;
+    border-bottom: 1.5px solid var(--border);
+  }
+  .tab {
+    padding: 0.6rem 1.2rem;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text3);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1.5px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab:hover { color: var(--text2); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+
+  /* Section */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  /* Info box */
+  .info {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+    color: var(--accent);
+    margin-bottom: 1rem;
+    line-height: 1.6;
+  }
+
+  /* Labels */
+  label.field-label {
+    display: block;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text3);
+    margin-bottom: 0.4rem;
+  }
+
+  /* Textarea */
+  textarea {
+    width: 100%;
+    min-height: 200px;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    resize: vertical;
+    transition: border-color 0.15s;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); background: #fff; }
+
+  /* Selects */
+  select {
+    padding: 0.5rem 0.85rem;
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+  select:focus { outline: none; border-color: var(--accent); }
+
+  /* Buttons */
+  .btn {
+    padding: 0.55rem 1.25rem;
+    border-radius: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .btn-primary:hover { background: #234a31; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-secondary {
+    background: transparent;
+    color: var(--text2);
+    border-color: var(--border2);
+  }
+  .btn-secondary:hover { background: var(--surface2); }
+
+  /* Row of controls */
+  .controls {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 0.85rem;
+  }
+
+  /* Steps */
+  .steps { display: flex; flex-direction: column; gap: 1rem; }
+  .step { display: flex; gap: 1rem; align-items: flex-start; }
+  .step-num {
+    width: 30px; height: 30px; flex-shrink: 0;
+    background: var(--accent-light);
+    color: var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+  .step-body { flex: 1; padding-top: 3px; }
+  .step-body strong { color: var(--text); font-weight: 500; display: block; margin-bottom: 3px; }
+  .step-body p { font-size: 0.875rem; color: var(--text2); line-height: 1.6; }
+
+  /* Prompt box */
+  #prompt-box { min-height: 120px; }
+  .copy-confirm {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    display: none;
+    align-self: center;
+  }
+
+  /* Summary grid */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+  }
+  .metric-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text3);
+    margin-bottom: 5px;
+  }
+  .metric-value {
+    font-family: 'Fraunces', serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  /* Results table */
+  #results-table {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    max-height: 380px;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+  }
+  .result-row {
+    display: grid;
+    grid-template-columns: 70px 1fr 80px 140px 72px;
+    gap: 8px;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    font-size: 0.8rem;
+  }
+  .result-row:last-child { border-bottom: none; }
+  .result-header {
+    background: var(--surface2);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text3);
+    position: sticky;
+    top: 0;
+  }
+  .result-row:not(.result-header) { background: var(--surface); }
+  .result-row:not(.result-header):hover { background: var(--surface2); }
+
+  /* Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .badge-house { background: var(--blue-light); color: var(--blue); }
+  .badge-personal { background: var(--purple-light); color: var(--purple); }
+  .badge-green { background: var(--accent-light); color: var(--accent); }
+  .badge-amber { background: var(--amber-light); color: var(--amber); }
+  .badge-blue { background: var(--blue-light); color: var(--blue); }
+  .badge-coral { background: var(--accent2-light); color: var(--accent2); }
+  .badge-teal { background: var(--teal-light); color: var(--teal); }
+  .badge-gray { background: var(--surface2); color: var(--text2); }
+  .badge-purple { background: var(--purple-light); color: var(--purple); }
+  .badge-pink { background: #fbeaf0; color: #7a1f45; }
+
+  /* Cat select */
+  .cat-select {
+    font-size: 0.72rem;
+    padding: 3px 5px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--surface2);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    width: 100%;
+  }
+
+  /* Export tables */
+  .export-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  .export-table tr { border-bottom: 1px solid var(--border); }
+  .export-table tr:last-child { border-bottom: none; }
+  .export-table td { padding: 9px 10px; }
+  .col-name { font-weight: 500; color: var(--text); }
+  .col-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.95rem;
+    color: var(--blue);
+    font-weight: 500;
+  }
+  .col-neg { color: var(--red); }
+  .col-note { font-size: 0.78rem; color: var(--text3); }
+
+  /* Section header */
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .section-head h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .section-head span {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text3);
+  }
+
+  /* Error */
+  .err { font-size: 0.8rem; color: var(--red); font-family: 'DM Mono', monospace; }
+
+  /* Status */
+  .status { font-size: 0.8rem; color: var(--text2); margin-top: 6px; min-height: 20px; }
+
+  @media (max-width: 600px) {
+    header { padding: 1rem; }
+    main { padding: 1.25rem 1rem 3rem; }
+    .result-row { grid-template-columns: 60px 1fr 70px; }
+    .result-row .cat-col, .result-row .sheet-col { display: none; }
+    .tab { padding: 0.5rem 0.7rem; font-size: 0.65rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>15 Pakaraka Drive</h1>
+  <span>Monthly Expense Tracker — Peter &amp; Tony</span>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('input')">1. Transactions</button>
+    <button class="tab" onclick="switchTab('send')">2. AI Prompt</button>
+    <button class="tab" onclick="switchTab('results')">3. Paste Results</button>
+    <button class="tab" onclick="switchTab('export')">4. Excel Values</button>
+  </div>
+
+  <!-- STEP 1: Input -->
+  <div id="tab-input" class="section active">
+    <div class="section-head">
+      <h2>Paste your ASB export</h2>
+      <span>Streamline + Credit Card</span>
+    </div>
+    <div class="card">
+      <div class="info">Export your transactions from ASB internet banking for the month. You can paste both your Streamline account and Visa Platinum Credit Card exports together.</div>
+      <label class="field-label">Transaction data</label>
+      <textarea id="raw-data" placeholder="Paste your ASB CSV export here...
+
+Accepts both Streamline and Credit Card formats.
+You can combine multiple exports — just paste them one after the other."></textarea>
+      <div class="controls">
+        <select id="month-select">
+          <option>Jan</option><option>Feb</option><option>Mar</option><option>Apr</option>
+          <option>May</option><option>Jun</option><option>Jul</option><option>Aug</option>
+          <option>Sep</option><option>Oct</option><option>Nov</option><option>Dec</option>
+        </select>
+        <select id="year-select">
+          <option>2026</option><option>2025</option><option>2024</option>
+        </select>
+        <button class="btn btn-secondary" onclick="loadSample()">Load sample data</button>
+        <button class="btn btn-primary" onclick="goToSend()">Build AI prompt →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: Send prompt -->
+  <div id="tab-send" class="section">
+    <div class="section-head">
+      <h2>Send to Claude</h2>
+      <span>Copy &amp; paste into Claude chat</span>
+    </div>
+    <div class="card">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <strong>Copy the prompt below</strong>
+            <p>Click "Copy prompt" — everything is included: your transactions and instructions.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <strong>Paste it into Claude</strong>
+            <p>Open <a href="https://claude.ai" target="_blank" style="color:var(--accent)">claude.ai</a> and paste the prompt into a new chat. Claude will reply with a JSON array of categorised transactions.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <strong>Copy Claude's JSON reply</strong>
+            <p>Copy the entire JSON array from Claude's response, then go to step 3 in this app.</p>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:1.25rem;">
+        <label class="field-label">Generated prompt</label>
+        <textarea id="prompt-box" readonly></textarea>
+        <div class="controls">
+          <button class="btn btn-primary" onclick="copyPrompt()">Copy prompt</button>
+          <span class="copy-confirm" id="copy-confirm">✓ Copied!</span>
+          <button class="btn btn-secondary" onclick="switchTab('input')">← Back</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: Paste JSON -->
+  <div id="tab-results" class="section">
+    <div class="section-head">
+      <h2>Paste Claude's response</h2>
+      <span>JSON array from Claude</span>
+    </div>
+    <div class="card">
+      <div class="info">Copy the JSON array from Claude's reply and paste it below, then click "Load results".</div>
+      <label class="field-label">Claude's JSON response</label>
+      <textarea id="json-input" style="min-height:140px;" placeholder='[{"date":"01/03","description":"PAK N SAVE","amount":114.6,"category":"Groceries","sheet":"House","notes":""}, ...]'></textarea>
+      <div class="controls">
+        <button class="btn btn-primary" onclick="loadResults()">Load results →</button>
+        <span class="err" id="parse-error" style="display:none;"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4: Export -->
+  <div id="tab-export" class="section">
+    <div id="export-empty" class="card">
+      <p style="color:var(--text2);font-size:0.875rem;">Complete steps 1–3 first to see your Excel values here.</p>
+    </div>
+    <div id="export-content" style="display:none;">
+      <div class="section-head">
+        <h2>Excel values</h2>
+        <span id="month-label-display"></span>
+      </div>
+
+      <div class="summary-grid" id="summary-grid"></div>
+
+      <div style="margin-bottom:0.5rem;">
+        <label class="field-label">All transactions — adjust categories if needed</label>
+      </div>
+      <div id="results-table"></div>
+
+      <div class="card" style="margin-top:1.5rem;">
+        <div style="display:flex;align-items:baseline;gap:0.5rem;margin-bottom:1rem;">
+          <strong style="font-family:'Fraunces',serif;font-size:1rem;">General House Expense</strong>
+          <span style="font-family:'DM Mono',monospace;font-size:0.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);">shared tab</span>
+        </div>
+        <p style="font-size:0.8rem;color:var(--text2);margin-bottom:0.85rem;">Find the row for <span id="house-month" style="font-weight:500;color:var(--text)"></span> in the spreadsheet and enter these values:</p>
+        <div id="house-export"></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:baseline;gap:0.5rem;margin-bottom:1rem;">
+          <strong style="font-family:'Fraunces',serif;font-size:1rem;">Peters Personal Expenses</strong>
+          <span style="font-family:'DM Mono',monospace;font-size:0.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);">Peter only</span>
+        </div>
+        <p style="font-size:0.8rem;color:var(--text2);margin-bottom:0.85rem;">Find the row for <span id="personal-month" style="font-weight:500;color:var(--text)"></span> and enter these values:</p>
+        <div id="personal-export"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  let categorisedResults = [];
+  let currentMonth = '';
+
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('month-select').value = monthNames[new Date().getMonth() > 0 ? new Date().getMonth() - 1 : 11];
+
+  function switchTab(t) {
+    const tabs = ['input','send','results','export'];
+    document.querySelectorAll('.tab').forEach((b,i) => b.classList.toggle('active', tabs[i] === t));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById('tab-' + t).classList.add('active');
+  }
+
+  function loadSample() {
+    document.getElementById('raw-data').value = `Created date / time : 12 April 2026 / 12:27:00
+Card Number XXXX-XXXX-XXXX-0668 (Visa Platinum Rewards)
+From date 20260301
+To date 20260331
+Date Processed,Date of Transaction,Unique Id,Tran Type,Reference,Description,Amount
+2026/03/01,2026/02/28,2026030101,DEBIT,0668,SEQUEL CAFE AUCKLAND,37.19
+2026/03/01,2026/02/28,2026030102,DEBIT,0668,AUCKLANDTRANSPORTPARKING AUCKLAND,11.50
+2026/03/03,2026/03/02,2026030301,DEBIT,0668,2DEGREES AUCKLAND,92.92
+2026/03/03,2026/03/02,2026030302,DEBIT,0668,JUST CUTS ORMISTON AUCKLAND,45.90
+2026/03/16,2026/03/14,2026031601,DEBIT,0668,TAIPING ASIAN SUPERMARKET AUCKLAND,25.19
+2026/03/22,2026/03/22,2026032201,DEBIT,0668,PAK N SAVE PAPAKURA TAKANINI,114.60
+2026/03/26,2026/03/25,2026032602,DEBIT,0668,GENESIS ENERGY 095802094,89.94
+
+Date,Unique Id,Tran Type,Cheque,Payee,Memo,Amount
+2026/03/04,2026030401,A/P,,Sharesies NZ,A/P CL178549,-200.0
+2026/03/04,2026030402,D/D,,IAG New Zealand Limi,D/D STATE Insura,-15.87
+2026/03/05,2026030501,A/P,,Hatch Invest,A/P KHZDKTTD,-1000.0
+2026/03/05,2026030502,D/D,,PM TRANSFER,D/D BY Chang-Chi LIN TO KIWISAVER,-100.0
+2026/03/05,2026030503,D/D,,DEBITSUCESS,D/D JETTS HIGHBR,-10.2
+2026/03/06,2026030601,D/D,,ASB Group Investment,D/D EF221496 Wealth Mgmt,-250.0
+2026/03/13,2026031301,D/C,,D/C FROM CASS MEDICAL,CASS MEDICAL,5023.89`;
+    document.getElementById('month-select').value = 'Mar';
+    document.getElementById('year-select').value = '2026';
+  }
+
+  function goToSend() {
+    const raw = document.getElementById('raw-data').value.trim();
+    if (!raw) { alert('Please paste your ASB transaction data first.'); return; }
+    const month = document.getElementById('month-select').value;
+    const year = document.getElementById('year-select').value;
+    currentMonth = `${month} ${year}`;
+
+    const prompt = `Please categorise these ASB bank transactions for ${currentMonth} and return ONLY a JSON array with no other text, no markdown fences.
+
+Each object must have: date (DD/MM), description (short merchant name), amount (positive=expense, negative=income), category, sheet ("House" or "Personal" or "Skip"), notes.
+
+Categories:
+HOUSE sheet: Groceries (Pak n Save, Woolworths, Countdown, New World, Lim Chhour, Taiping Asian, Smart Supermarket), Electricity (Genesis Energy, Mercury, Contact), Water, Council Rates (council rates/15 Pakaraka payments), Wifi (2degrees, Spark broadband), Insurance (IAG, State Insurance)
+PERSONAL sheet: Eating Out (restaurants/cafes/fast food), Jetts (DEBITSUCESS JETTS), Sharesies, Hatch, KiwiSaver (PM TRANSFER kiwisaver), ASB Investment (ASB Group Investment/Wealth Mgmt), Google One, Haircut (Just Cuts), Health (Chemist Warehouse/pharmacy), Transport (Uber/parking/Auckland Transport), Shopping, Travel (Avis/airline/accommodation/overseas), Royal NZ Fo, 2degrees Mobile, Other
+PERSONAL sheet special: Take Home Pay (Cass Medical income — positive amount), Brother Transfer (D/C FROM MR T LIN)
+SKIP: credit card payments (PAYMENT - THANK YOU), ASB direct debit for credit card (D/D LIN C)
+
+Transactions:
+${raw}`;
+
+    document.getElementById('prompt-box').value = prompt;
+    switchTab('send');
+  }
+
+  function copyPrompt() {
+    navigator.clipboard.writeText(document.getElementById('prompt-box').value).then(() => {
+      const el = document.getElementById('copy-confirm');
+      el.style.display = 'inline';
+      setTimeout(() => el.style.display = 'none', 2500);
+    });
+  }
+
+  function loadResults() {
+    const raw = document.getElementById('json-input').value.trim();
+    const errEl = document.getElementById('parse-error');
+    errEl.style.display = 'none';
+    try {
+      const clean = raw.replace(/```json|```/g, '').trim();
+      const s = clean.indexOf('['), e = clean.lastIndexOf(']');
+      if (s === -1) throw new Error('No JSON array found');
+      categorisedResults = JSON.parse(clean.substring(s, e + 1)).filter(r => r.sheet !== 'Skip');
+      buildExport();
+      switchTab('export');
+    } catch(err) {
+      errEl.textContent = 'Could not parse — make sure you copied the full JSON array from Claude.';
+      errEl.style.display = 'inline';
+    }
+  }
+
+  const catColors = {
+    'Groceries':'green','Electricity':'amber','Water':'blue','Council Rates':'amber',
+    'Wifi':'blue','Insurance':'gray','Eating Out':'coral','Jetts':'purple',
+    'Sharesies':'green','Hatch':'green','KiwiSaver':'green','ASB Investment':'green',
+    'Take Home Pay':'teal','Brother Transfer':'teal','Google One':'gray',
+    'Haircut':'gray','Health':'pink','Transport':'blue','Travel':'coral',
+    'Shopping':'amber','2degrees Mobile':'blue','Royal NZ Fo':'gray','Other':'gray'
+  };
+
+  const allCats = ['Groceries','Electricity','Water','Wifi','Council Rates','Insurance',
+    'Eating Out','Jetts','Sharesies','Hatch','KiwiSaver','ASB Investment',
+    'Take Home Pay','Brother Transfer','Google One','Haircut','Health',
+    'Transport','Travel','Shopping','2degrees Mobile','Royal NZ Fo','Other'];
+
+  function sum(cat) {
+    return categorisedResults.filter(r => r.category === cat).reduce((s,r) => s + Math.abs(r.amount), 0);
+  }
+
+  function buildExport() {
+    if (!categorisedResults.length) return;
+    document.getElementById('export-empty').style.display = 'none';
+    document.getElementById('export-content').style.display = 'block';
+    document.getElementById('month-label-display').textContent = currentMonth;
+    document.getElementById('house-month').textContent = currentMonth;
+    document.getElementById('personal-month').textContent = currentMonth;
+
+    // Summary
+    const house = categorisedResults.filter(r => r.sheet === 'House');
+    const houseTotal = house.reduce((s,r) => s + Math.abs(r.amount), 0);
+    const personalSpend = categorisedResults.filter(r =>
+      r.sheet === 'Personal' && !['Take Home Pay','Brother Transfer','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(r.category)
+    ).reduce((s,r) => s + Math.abs(r.amount), 0);
+    const pay = categorisedResults.filter(r => r.category === 'Take Home Pay').reduce((s,r) => s + Math.abs(r.amount), 0);
+    const savings = pay - (personalSpend + sum('Sharesies') + sum('Hatch') + sum('KiwiSaver') + sum('ASB Investment'));
+
+    document.getElementById('summary-grid').innerHTML = `
+      <div class="metric"><div class="metric-label">Transactions</div><div class="metric-value">${categorisedResults.length}</div></div>
+      <div class="metric"><div class="metric-label">House total</div><div class="metric-value">$${houseTotal.toFixed(0)}</div></div>
+      <div class="metric"><div class="metric-label">Personal spend</div><div class="metric-value">$${personalSpend.toFixed(0)}</div></div>
+      ${pay ? `<div class="metric"><div class="metric-label">Take home pay</div><div class="metric-value">$${pay.toFixed(0)}</div></div>` : ''}
+      ${pay ? `<div class="metric"><div class="metric-label">Est. savings</div><div class="metric-value" style="color:${savings>=0?'var(--accent)':'var(--red)'}">$${savings.toFixed(0)}</div></div>` : ''}
+    `;
+
+    // Results table
+    let html = `<div id="results-table"><div class="result-row result-header"><span>Date</span><span>Description</span><span>Amount</span><span class="cat-col">Category</span><span class="sheet-col">Sheet</span></div>`;
+    categorisedResults.forEach((r, i) => {
+      const isIncome = r.amount < 0;
+      const c = catColors[r.category] || 'gray';
+      html += `<div class="result-row">
+        <span style="font-family:'DM Mono',monospace;font-size:0.72rem;color:var(--text3)">${r.date||''}</span>
+        <span style="font-size:0.8rem">${r.description}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:0.8rem;font-weight:500;color:${isIncome?'var(--accent)':'var(--text)'}">$${Math.abs(r.amount).toFixed(2)}</span>
+        <span class="cat-col"><select class="cat-select" onchange="categorisedResults[${i}].category=this.value;buildExport()">${allCats.map(cat=>`<option value="${cat}"${r.category===cat?' selected':''}>${cat}</option>`).join('')}</select></span>
+        <span class="sheet-col"><span class="badge badge-${r.sheet==='House'?'house':'personal'}">${r.sheet}</span></span>
+      </div>`;
+    });
+    html += '</div>';
+    document.getElementById('results-table').outerHTML = html;
+
+    // House export
+    const houseRows = [
+      ['Groceries total', sum('Groceries'), 'All grocery shops'],
+      ['Electricity/Gas', sum('Electricity'), 'Genesis Energy'],
+      ['Water', sum('Water'), 'Water bill'],
+      ['Council rates', sum('Council Rates'), 'Council payment'],
+      ['Wifi', sum('Wifi'), '2degrees / Spark'],
+      ['Insurance', sum('Insurance'), 'House insurance'],
+    ].filter(r => r[1] > 0);
+
+    document.getElementById('house-export').innerHTML = houseRows.length ? `
+      <table class="export-table">
+        <thead><tr style="font-family:'DM Mono',monospace;font-size:0.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);">
+          <td style="padding:6px 10px;">Column in spreadsheet</td><td style="padding:6px 10px;">Value</td><td style="padding:6px 10px;">Source</td>
+        </tr></thead>
+        <tbody>${houseRows.map(r=>`<tr>
+          <td class="col-name" style="padding:9px 10px;">${r[0]}</td>
+          <td class="col-val" style="padding:9px 10px;">${r[1].toFixed(2)}</td>
+          <td class="col-note" style="padding:9px 10px;">${r[2]}</td>
+        </tr>`).join('')}</tbody>
+      </table>` : '<p style="font-size:0.875rem;color:var(--text3);">No house expenses found this month.</p>';
+
+    // Personal export
+    const eating=sum('Eating Out'), jetts=sum('Jetts'), sharesies=sum('Sharesies'),
+      hatch=sum('Hatch'), ks=sum('KiwiSaver'), asbInv=sum('ASB Investment'),
+      google=sum('Google One'), haircut=sum('Haircut'), health=sum('Health'),
+      transport=sum('Transport'), shopping=sum('Shopping'), travel=sum('Travel'),
+      royalNZ=sum('Royal NZ Fo'), mobile=sum('2degrees Mobile'), other=sum('Other');
+
+    const totalExcInv = eating+jetts+google+haircut+health+transport+shopping+royalNZ+other+mobile;
+    const totalInv = sharesies+hatch+ks+asbInv;
+    const totalExpense = totalExcInv+totalInv;
+    const savingsCalc = pay - totalExpense;
+
+    const personalRows = [
+      ['Eating out', eating],
+      ['Jetts', jetts],
+      ['(+) Sharesies', sharesies],
+      ['(+) Hatch', hatch],
+      ['(+) KS (KiwiSaver)', ks],
+      ['(+) ASB investment fund', asbInv],
+      ['Google One', google],
+      ['Haircut', haircut],
+      ['Health', health],
+      ['Transport/parking', transport],
+      ['Shopping', shopping],
+      ['Travel', travel],
+      ['Royal New Zealand Fo', royalNZ],
+      ['Other', other],
+      ['Take Home pay', pay],
+      ['Total (exclude investment)', totalExcInv],
+      ['Total expense', totalExpense],
+      ['Savings', savingsCalc],
+    ].filter(r => r[1] !== 0);
+
+    document.getElementById('personal-export').innerHTML = personalRows.length ? `
+      <table class="export-table">
+        <thead><tr style="font-family:'DM Mono',monospace;font-size:0.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);">
+          <td style="padding:6px 10px;">Column in spreadsheet</td><td style="padding:6px 10px;">Value</td>
+        </tr></thead>
+        <tbody>${personalRows.map(r=>`<tr>
+          <td class="col-name" style="padding:9px 10px;">${r[0]}</td>
+          <td class="${r[1]<0?'col-val col-neg':'col-val'}" style="padding:9px 10px;">${r[1].toFixed(2)}</td>
+        </tr>`).join('')}</tbody>
+      </table>` : '<p style="font-size:0.875rem;color:var(--text3);">No personal expenses found.</p>';
+  }
+</script>
+</body>
+</html>
