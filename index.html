@@ -588,8 +588,8 @@ select:focus{outline:none;border-color:var(--accent)}
       </div>
 
       <div class="controls">
-        <button class="btn btn-primary" id="save-btn" onclick="saveCurrentMonth()">💾 Save to dashboard</button>
-        <span id="save-confirm" style="display:none;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--accent)">✓ Saved!</span>
+        <button class="btn btn-primary" id="save-btn" onclick="saveCurrentMonth()">💾 Re-save to dashboard</button>
+        <span id="save-confirm" style="display:none;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--accent)">✓ Auto-saved!</span>
       </div>
     </div>
   </div>
@@ -842,6 +842,11 @@ function loadResults() {
     if (s === -1) throw new Error('No JSON array found');
     categorisedResults = JSON.parse(clean.substring(s, e+1)).filter(r => r.sheet !== 'Skip');
     buildStep4();
+    autoSaveMonth();
+    // Show auto-save confirmation
+    const sc = document.getElementById('save-confirm');
+    sc.style.display = 'inline';
+    sc.textContent = '✓ Auto-saved!';
     switchInner('step4');
   } catch(err) {
     errEl.textContent = 'Could not parse — make sure you copied the full JSON array from Claude.';
@@ -934,7 +939,19 @@ function buildStep4() {
   document.getElementById('save-confirm').style.display = 'none';
 }
 
+function autoSaveMonth() {
+  if (!categorisedResults.length || !currentMonthKey) return;
+  _doSave();
+}
+
 function saveCurrentMonth() {
+  if (!categorisedResults.length || !currentMonthKey) return;
+  _doSave();
+  document.getElementById('save-confirm').style.display = 'inline';
+  document.getElementById('save-confirm').textContent = `✓ Saved for ${getCurrentUser()}!`;
+}
+
+function _doSave() {
   if (!categorisedResults.length || !currentMonthKey) return;
   const data = loadAllData();
   // Build summary object
@@ -958,6 +975,7 @@ function saveCurrentMonth() {
     key: currentMonthKey,
     label: monthLabel(currentMonthKey),
     savedBy: getCurrentUser(),
+    savedAt: new Date().toISOString(),
     transactions: categorisedResults,
     summary: {
       houseTotal, tonyContrib, peterContrib: houseTotal - tonyContrib,
@@ -973,8 +991,6 @@ function saveCurrentMonth() {
     }
   };
   saveAllData(data);
-  document.getElementById('save-confirm').style.display = 'inline';
-  document.getElementById('save-confirm').textContent = `✓ Saved for ${getCurrentUser()}!`;
 }
 
 // ═══════════════════════════
@@ -1144,10 +1160,11 @@ function renderHistory() {
   listEl.innerHTML = `<div class="months-list">${keys.map(k=>{
     const d = data[k];
     const s = d.summary;
+    const savedAtStr = d.savedAt ? new Date(d.savedAt).toLocaleDateString('en-NZ', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
     return `<div class="month-entry">
       <div>
         <div class="month-entry-name">${d.label} ${d.savedBy ? `<span class="entry-tag ${d.savedBy.toLowerCase()==='peter'?'tag-peter':d.savedBy.toLowerCase()==='tony'?'tag-tony':'tag-other'}">${d.savedBy}</span>` : ''}</div>
-        <div class="month-entry-meta">House $${s.houseTotal.toFixed(0)} · Personal $${s.personalSpend.toFixed(0)} · Savings $${s.savings.toFixed(0)} · ${d.transactions.length} txns</div>
+        <div class="month-entry-meta">House $${s.houseTotal.toFixed(0)} · Personal $${s.personalSpend.toFixed(0)} · Savings $${s.savings.toFixed(0)} · ${d.transactions.length} txns${savedAtStr ? ' · saved '+savedAtStr : ''}</div>
       </div>
       <div class="month-entry-actions">
         <button class="btn btn-danger" style="padding:.35rem .75rem;font-size:.65rem" onclick="deleteMonth('${k}')">Delete</button>
