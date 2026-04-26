@@ -711,7 +711,7 @@ const db = getFirestore(app);
 let _cache = null;
 let _correctionsCache = null;
 
-async function await loadAllData() {
+async function loadAllData() {
   if (_cache) return _cache;
   showSyncIndicator('Loading…');
   try {
@@ -1442,7 +1442,7 @@ async function viewMonthDetail(key) {
   setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 }
 
-function renderDetailTxnTable(key) {
+async function renderDetailTxnTable(key) {
   const data = await loadAllData();
   const txns = data[key]?.transactions || [];
   let thtml = `<div class="result-row result-header"><span>Date</span><span>Description</span><span>Amount</span><span class="hide-mobile">Category</span><span class="hide-mobile">Sheet</span></div>`;
