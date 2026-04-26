@@ -6,6 +6,7 @@
 <title>15 Pakaraka Drive — Expense Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Playfair+Display:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
@@ -430,6 +431,7 @@ select:focus{outline:none;border-color:var(--accent)}
     <div class="user-avatar" id="user-avatar">?</div>
     <span id="user-name-display">—</span>
   </div>
+  <span id="sync-indicator" style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3);padding:.5rem .75rem;opacity:0;transition:opacity .3s;white-space:nowrap;"></span>
 </nav>
 
 <!-- ═══════════════════════════════════════════════
@@ -681,19 +683,101 @@ select:focus{outline:none;border-color:var(--accent)}
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-<script>
+<script type="module">
 // ═══════════════════════════
-// DATA LAYER — localStorage
+// FIREBASE SETUP
 // ═══════════════════════════
-const STORAGE_KEY = 'pakaraka_expenses_v2';
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
 
-function loadAllData() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; }
+const firebaseConfig = {
+  apiKey: "AIzaSyBHhISJ_aoBxnPOQRm2_0QQaNDFwXpWxGw",
+  authDomain: "pakarakaexpensetracker.firebaseapp.com",
+  projectId: "pakarakaexpensetracker",
+  storageBucket: "pakarakaexpensetracker.firebasestorage.app",
+  messagingSenderId: "240900304839",
+  appId: "1:240900304839:web:1c29c241e13f09170d73e2",
+  measurementId: "G-W103N1GDS6"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ═══════════════════════════
+// DATA LAYER — Firestore
+// ═══════════════════════════
+
+// In-memory cache so UI stays fast after first load
+let _cache = null;
+let _correctionsCache = null;
+
+async function await loadAllData() {
+  if (_cache) return _cache;
+  showSyncIndicator('Loading…');
+  try {
+    const snap = await getDocs(collection(db, 'months'));
+    const result = {};
+    snap.forEach(d => { result[d.id] = d.data(); });
+    _cache = result;
+    hideSyncIndicator();
+    return result;
+  } catch(e) {
+    hideSyncIndicator();
+    console.error('Firestore load error:', e);
+    return {};
+  }
 }
-function saveAllData(d) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
+
+async function saveAllData(dataObj, key) {
+  // key = the specific month key being saved
+  _cache = dataObj;
+  showSyncIndicator('Saving…');
+  try {
+    await setDoc(doc(db, 'months', key), dataObj[key]);
+    hideSyncIndicator('✓ Synced');
+  } catch(e) {
+    hideSyncIndicator('⚠ Sync failed');
+    console.error('Firestore save error:', e);
+  }
 }
+
+async function deleteMonthFromDB(key) {
+  if (_cache) delete _cache[key];
+  try {
+    await deleteDoc(doc(db, 'months', key));
+  } catch(e) { console.error('Firestore delete error:', e); }
+}
+
+async function loadCorrections() {
+  if (_correctionsCache) return _correctionsCache;
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'corrections'));
+    _correctionsCache = snap.exists() ? (snap.data().list || []) : [];
+    return _correctionsCache;
+  } catch(e) { return []; }
+}
+
+async function saveCorrections(list) {
+  _correctionsCache = list;
+  try {
+    await setDoc(doc(db, 'settings', 'corrections'), { list });
+  } catch(e) { console.error('Corrections save error:', e); }
+}
+
+// Sync indicator
+let syncTimer = null;
+function showSyncIndicator(msg) {
+  const el = document.getElementById('sync-indicator');
+  if (el) { el.textContent = msg; el.style.opacity = '1'; }
+}
+function hideSyncIndicator(msg) {
+  const el = document.getElementById('sync-indicator');
+  if (!el) return;
+  if (msg) { el.textContent = msg; el.style.opacity = '1'; }
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => { el.style.opacity = '0'; }, 2000);
+}
+
 
 // Month key e.g. "2026-03"
 function monthKey(m, y) {
@@ -712,14 +796,14 @@ function sortedKeys(data) {
 // ═══════════════════════════
 // NAVIGATION
 // ═══════════════════════════
-function showPage(p) {
+async function showPage(p) {
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
   const tabs = ['dashboard','categorise','history'];
   document.querySelectorAll('.nav-tab')[tabs.indexOf(p)].classList.add('active');
-  if (p === 'dashboard') renderDashboard();
-  if (p === 'history') renderHistory();
+  if (p === 'dashboard') await renderDashboard();
+  if (p === 'history') await renderHistory();
 }
 
 function switchInner(s) {
@@ -872,7 +956,7 @@ Date,Unique Id,Tran Type,Cheque,Payee,Memo,Amount
   document.getElementById('year-select').value = '2026';
 }
 
-function goToPrompt() {
+async function goToPrompt() {
   const raw = getRawData();
   if (!raw) { alert('Please drop a CSV file or paste your ASB data first.'); return; }
   const m = document.getElementById('month-select').value;
@@ -880,7 +964,7 @@ function goToPrompt() {
   currentMonthKey = monthKey(m, y);
 
   // Build corrections block from memory
-  const corrections = loadCorrections();
+  const corrections = await loadCorrections();
   let correctionsBlock = '';
   if (corrections.length) {
     const lines = corrections.map(c => `- "${c.description}" → always categorise as "${c.toCat}"`).join('\n');
@@ -1029,21 +1113,21 @@ function buildStep4() {
   document.getElementById('save-confirm').style.display = 'none';
 }
 
-function autoSaveMonth() {
+async function autoSaveMonth() {
   if (!categorisedResults.length || !currentMonthKey) return;
-  _doSave();
+  await _doSave();
 }
 
-function saveCurrentMonth() {
+async function saveCurrentMonth() {
   if (!categorisedResults.length || !currentMonthKey) return;
-  _doSave();
+  await _doSave();
   document.getElementById('save-confirm').style.display = 'inline';
   document.getElementById('save-confirm').textContent = `✓ Saved for ${getCurrentUser()}!`;
 }
 
-function _doSave() {
+async function _doSave() {
   if (!categorisedResults.length || !currentMonthKey) return;
-  const data = loadAllData();
+  const data = await loadAllData();
   // Build summary object
   const houseTotal = categorisedResults.filter(r=>r.sheet==='House').reduce((s,r)=>s+Math.abs(r.amount),0);
   const tonyContrib = sumCat('Brother Transfer');
@@ -1080,7 +1164,7 @@ function _doSave() {
       }
     }
   };
-  saveAllData(data);
+  await saveAllData(data, currentMonthKey);
 }
 
 // ═══════════════════════════
@@ -1092,8 +1176,8 @@ function destroyChart(id) {
   if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
 }
 
-function renderDashboard() {
-  const data = loadAllData();
+async function renderDashboard() {
+  const data = await loadAllData();
   const keys = sortedKeys(data);
 
   if (!keys.length) {
@@ -1226,17 +1310,17 @@ function renderCatBars(key, data) {
     </div>`).join('');
 }
 
-function selectCatMonth(key) {
+async function selectCatMonth(key) {
   document.querySelectorAll('.month-pill').forEach(p => p.classList.toggle('active', p.textContent === monthLabel(key)));
-  const data = loadAllData();
+  const data = await loadAllData();
   renderCatBars(key, data);
 }
 
 // ═══════════════════════════
 // HISTORY
 // ═══════════════════════════
-function renderHistory() {
-  const data = loadAllData();
+async function renderHistory() {
+  const data = await loadAllData();
   const keys = sortedKeys(data).reverse();
   const listEl = document.getElementById('history-list');
   const emptyEl = document.getElementById('history-empty');
@@ -1263,9 +1347,9 @@ function renderHistory() {
   }).join('')}</div>`;
 }
 
-function deleteMonth(key) {
+async function deleteMonth(key) {
   if (!confirm(`Delete data for ${monthLabel(key)}? This cannot be undone.`)) return;
-  const data = loadAllData();
+  const data = await loadAllData();
   delete data[key];
   saveAllData(data);
   closeDetail();
@@ -1278,8 +1362,8 @@ function closeDetail() {
   document.querySelectorAll('.month-entry').forEach(e => e.style.background = '');
 }
 
-function viewMonthDetail(key) {
-  const data = loadAllData();
+async function viewMonthDetail(key) {
+  const data = await loadAllData();
   const d = data[key];
   if (!d) return;
   const s = d.summary;
@@ -1350,7 +1434,7 @@ function viewMonthDetail(key) {
 
   // Editable transactions table
   document.getElementById('history-detail').dataset.key = key;
-  renderDetailTxnTable(key);
+  await renderDetailTxnTable(key);
 
   // Show panel and scroll to it
   const panel = document.getElementById('history-detail');
@@ -1359,7 +1443,7 @@ function viewMonthDetail(key) {
 }
 
 function renderDetailTxnTable(key) {
-  const data = loadAllData();
+  const data = await loadAllData();
   const txns = data[key]?.transactions || [];
   let thtml = `<div class="result-row result-header"><span>Date</span><span>Description</span><span>Amount</span><span class="hide-mobile">Category</span><span class="hide-mobile">Sheet</span></div>`;
   txns.forEach((r, i) => {
@@ -1375,9 +1459,9 @@ function renderDetailTxnTable(key) {
   document.getElementById('detail-txn-table').innerHTML = thtml;
 }
 
-function updateDetailCat(key, idx, newCat) {
+async function updateDetailCat(key, idx, newCat) {
   const houseSheetCats = ['Groceries','Electricity','Water','Wifi','Council Rates','Insurance'];
-  const data = loadAllData();
+  const data = await loadAllData();
   if (!data[key]) return;
   const txn = data[key].transactions[idx];
   const oldCat = txn.category;
@@ -1388,7 +1472,7 @@ function updateDetailCat(key, idx, newCat) {
   viewMonthDetailFromData(key, data);
 }
 
-function viewMonthDetailFromData(key, data) {
+async function viewMonthDetailFromData(key, data) {
   const d = data[key];
   if (!d) return;
   const investCats = ['Sharesies','Hatch','KiwiSaver','ASB Investment'];
@@ -1405,8 +1489,8 @@ function viewMonthDetailFromData(key, data) {
   allCats.forEach(c => cats[c] = txns.filter(r=>r.category===c).reduce((s,r)=>s+Math.abs(r.amount),0));
 
   data[key].summary = { ...d.summary, houseTotal, tonyContrib, peterContrib:houseTotal-tonyContrib, pay, personalSpend, investTotal, savings, categories:cats };
-  saveAllData(data);
-  renderDashboard();
+  await saveAllData(data, key);
+  await renderDashboard();
 
   document.getElementById('detail-metrics').innerHTML = `
     <div class="metric"><div class="metric-label">House total</div><div class="metric-value">$${houseTotal.toFixed(0)}</div></div>
@@ -1425,18 +1509,16 @@ function viewMonthDetailFromData(key, data) {
   const tei=e2+j2+go+hc+he+tr+sp+rn, ti=sh+ha+ks+ai, tex=tei+ti, sav=pay-tex;
   const pRows=[['Eating out',e2],['Jetts',j2],['(+) Sharesies',sh],['(+) Hatch',ha],['(+) KS (KiwiSaver)',ks],['(+) ASB investment fund',ai],['Google One',go],['Haircut',hc],['Health',he],['Transport/parking',tr],['Shopping',sp],['Travel',tv],['Royal New Zealand Fo',rn],['Take Home pay',pay],['Total (excl investment)',tei],['Total expense',tex],['Savings',sav]].filter(r=>r[1]!==0);
   document.getElementById('detail-personal-export').innerHTML = `<table class="export-table"><thead><tr style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;color:var(--text3)"><td style="padding:6px 10px">Column</td><td style="padding:6px 10px">Value</td></tr></thead><tbody>${pRows.map(r=>`<tr><td style="padding:9px 10px;font-weight:500">${r[0]}</td><td class="${r[1]<0?'col-val col-neg':'col-val'}" style="padding:9px 10px">${r[1].toFixed(2)}</td></tr>`).join('')}</tbody></table>`;
-  renderDetailTxnTable(key);
+  await renderDetailTxnTable(key);
 }
 
 // ═══════════════════════════
 // CORRECTIONS / AI FEEDBACK
 // ═══════════════════════════
-const CORRECTIONS_KEY = 'pakaraka_corrections';
-function loadCorrections() { try { return JSON.parse(localStorage.getItem(CORRECTIONS_KEY)) || []; } catch { return []; } }
-function saveCorrections(c) { localStorage.setItem(CORRECTIONS_KEY, JSON.stringify(c)); }
+const CORRECTIONS_KEY = 'pakaraka_corrections_legacy'; // kept for migration only
 
-function saveCorrectionFeedback(description, fromCat, toCat) {
-  const corrections = loadCorrections();
+async function saveCorrectionFeedback(description, fromCat, toCat) {
+  const corrections = await loadCorrections();
   const existing = corrections.find(c => c.description.toLowerCase() === description.toLowerCase());
   if (existing) {
     existing.toCat = toCat;
@@ -1445,7 +1527,7 @@ function saveCorrectionFeedback(description, fromCat, toCat) {
   } else {
     corrections.push({ description, fromCat, toCat, count:1, updatedAt: new Date().toISOString() });
   }
-  saveCorrections(corrections);
+  await saveCorrections(corrections);
   showCorrectionToast(`Learnt: "${description}" → ${toCat}`);
 }
 
@@ -1498,14 +1580,27 @@ function forgetUser() {
 }
 
 // ═══════════════════════════
+// EXPOSE TO WINDOW (module scope fix)
+// ═══════════════════════════
+Object.assign(window, {
+  showPage, switchInner, loadSample, goToPrompt, copyPrompt, loadResults,
+  saveCurrentMonth, togglePaste, handleFiles, removeFile,
+  selectCatMonth, deleteMonth, closeDetail, viewMonthDetail, updateDetailCat,
+  selectName, confirmOtherName, forgetUser,
+  renderDashboard, renderHistory
+});
+
+// ═══════════════════════════
 // INIT
 // ═══════════════════════════
-const savedUser = getCurrentUser();
-if (savedUser) {
-  document.getElementById('welcome-overlay').classList.add('hidden');
-  updateUserPill(savedUser);
-} 
-renderDashboard();
+(async () => {
+  const savedUser = getCurrentUser();
+  if (savedUser) {
+    document.getElementById('welcome-overlay').classList.add('hidden');
+    updateUserPill(savedUser);
+  }
+  await renderDashboard();
+})();
 </script>
 </body>
 </html>
