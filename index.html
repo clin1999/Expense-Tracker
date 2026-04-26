@@ -289,6 +289,30 @@ select:focus{outline:none;border-color:var(--accent)}
 }
 .file-chip button:hover { opacity: 1; }
 
+/* CORRECTION TOAST */
+#correction-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--text);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-family: 'DM Mono', monospace;
+  font-size: .72rem;
+  letter-spacing: .03em;
+  opacity: 0;
+  transition: transform .3s ease, opacity .3s ease;
+  z-index: 999;
+  white-space: nowrap;
+  pointer-events: none;
+}
+#correction-toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
 /* WELCOME OVERLAY */
 #welcome-overlay {
   position:fixed; inset:0; z-index:1000;
@@ -375,6 +399,8 @@ select:focus{outline:none;border-color:var(--accent)}
 </style>
 </head>
 <body>
+
+<div id="correction-toast"></div>
 
 <!-- WELCOME OVERLAY -->
 <div id="welcome-overlay">
@@ -529,6 +555,7 @@ select:focus{outline:none;border-color:var(--accent)}
       </div>
       <div style="margin-top:1.25rem">
         <div class="card-label">Generated prompt</div>
+        <div id="corrections-count" style="display:none;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--accent);margin-bottom:.5rem;padding:6px 10px;background:var(--accent-l);border-radius:6px;"></div>
         <textarea id="prompt-box" readonly style="min-height:110px;font-size:.72rem"></textarea>
         <div class="controls">
           <button class="btn btn-primary" onclick="copyPrompt()">Copy prompt</button>
@@ -601,12 +628,57 @@ select:focus{outline:none;border-color:var(--accent)}
 <div id="page-history" class="page">
   <div class="page-header">
     <h1>History</h1>
-    <p>All saved months</p>
+    <p>All saved months — click any entry to view Excel values</p>
   </div>
   <div class="card" id="history-empty" style="display:none">
     <div class="empty"><div class="empty-icon">🗂️</div><p>No months saved yet.</p></div>
   </div>
   <div class="card" id="history-list" style="padding:0;overflow:hidden"></div>
+
+  <!-- Corrections / AI feedback panel -->
+  <div id="corrections-panel" style="margin-top:1.5rem;display:none">
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+        <div>
+          <div class="card-label" style="margin-bottom:2px">Your category corrections</div>
+          <p style="font-size:.8rem;color:var(--text2)">These are included in your AI prompt so Claude learns your preferences over time.</p>
+        </div>
+        <button class="btn btn-danger" style="padding:.35rem .85rem;font-size:.65rem" onclick="clearCorrections()">Clear all</button>
+      </div>
+      <div id="corrections-list"></div>
+    </div>
+  </div>
+
+  <!-- Month detail panel -->
+  <div id="history-detail" style="display:none;margin-top:1.5rem">
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;flex-wrap:wrap">
+      <h2 id="detail-title" style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:600;letter-spacing:-0.02em"></h2>
+      <button class="btn btn-secondary" style="padding:.35rem .85rem;font-size:.65rem" onclick="closeDetail()">✕ Close</button>
+    </div>
+
+    <div class="metric-grid" id="detail-metrics"></div>
+
+    <div class="card">
+      <div style="display:flex;align-items:baseline;gap:.5rem;margin-bottom:.85rem">
+        <strong style="font-family:'Playfair Display',serif;font-size:1rem">General House Expense</strong>
+        <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">shared tab</span>
+      </div>
+      <div id="detail-house-export"></div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:baseline;gap:.5rem;margin-bottom:.85rem">
+        <strong style="font-family:'Playfair Display',serif;font-size:1rem">Peters Personal Expenses</strong>
+        <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Peter only</span>
+      </div>
+      <div id="detail-personal-export"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-label" style="margin-bottom:.75rem">All transactions</div>
+      <div id="detail-txn-table" style="max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
@@ -807,6 +879,14 @@ function goToPrompt() {
   const y = document.getElementById('year-select').value;
   currentMonthKey = monthKey(m, y);
 
+  // Build corrections block from memory
+  const corrections = loadCorrections();
+  let correctionsBlock = '';
+  if (corrections.length) {
+    const lines = corrections.map(c => `- "${c.description}" → always categorise as "${c.toCat}"`).join('\n');
+    correctionsBlock = `\nPREVIOUSLY CORRECTED — apply these exact categories (they override the rules above):\n${lines}\n`;
+  }
+
   const prompt = `Please categorise these ASB bank transactions for ${m} ${y} and return ONLY a JSON array with no other text, no markdown fences.
 
 Each object must have: date (DD/MM), description (short merchant name), amount (positive=expense, negative=income), category, sheet ("House" or "Personal" or "Skip"), notes.
@@ -816,11 +896,21 @@ HOUSE sheet: Groceries (Pak n Save, Woolworths, Countdown, New World, Lim Chhour
 PERSONAL sheet: Eating Out (restaurants/cafes/fast food), Jetts (DEBITSUCESS JETTS), Sharesies, Hatch, KiwiSaver (PM TRANSFER kiwisaver), ASB Investment (ASB Group Investment/Wealth Mgmt), Google One, Haircut (Just Cuts), Health (Chemist Warehouse/pharmacy), Transport (Uber/parking/Auckland Transport), Shopping, Travel (Avis/airline/accommodation/overseas), Royal NZ Fo, 2degrees Mobile, Other
 PERSONAL sheet special: Take Home Pay (Cass Medical income — positive amount), Brother Transfer (D/C FROM MR T LIN — money from Tony)
 SKIP: credit card payments (PAYMENT - THANK YOU), ASB direct debit for credit card (D/D LIN C)
-
+${correctionsBlock}
 Transactions:
 ${raw}`;
 
   document.getElementById('prompt-box').value = prompt;
+
+  // Show how many corrections are loaded
+  const corrCount = document.getElementById('corrections-count');
+  if (corrections.length) {
+    corrCount.textContent = `✓ ${corrections.length} correction${corrections.length>1?'s':''} from your history included`;
+    corrCount.style.display = 'block';
+  } else {
+    corrCount.style.display = 'none';
+  }
+
   switchInner('step2');
 }
 
@@ -1157,17 +1247,17 @@ function renderHistory() {
   }
   emptyEl.style.display = 'none';
   listEl.style.display = 'block';
-  listEl.innerHTML = `<div class="months-list">${keys.map(k=>{
-    const d = data[k];
+  listEl.innerHTML = `<div class="months-list">${keys.map(k=>{    const d = data[k];
     const s = d.summary;
     const savedAtStr = d.savedAt ? new Date(d.savedAt).toLocaleDateString('en-NZ', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
-    return `<div class="month-entry">
+    return `<div class="month-entry" onclick="viewMonthDetail('${k}')">
       <div>
         <div class="month-entry-name">${d.label} ${d.savedBy ? `<span class="entry-tag ${d.savedBy.toLowerCase()==='peter'?'tag-peter':d.savedBy.toLowerCase()==='tony'?'tag-tony':'tag-other'}">${d.savedBy}</span>` : ''}</div>
         <div class="month-entry-meta">House $${s.houseTotal.toFixed(0)} · Personal $${s.personalSpend.toFixed(0)} · Savings $${s.savings.toFixed(0)} · ${d.transactions.length} txns${savedAtStr ? ' · saved '+savedAtStr : ''}</div>
       </div>
       <div class="month-entry-actions">
-        <button class="btn btn-danger" style="padding:.35rem .75rem;font-size:.65rem" onclick="deleteMonth('${k}')">Delete</button>
+        <button class="btn btn-secondary" style="padding:.35rem .75rem;font-size:.65rem" onclick="event.stopPropagation();viewMonthDetail('${k}')">View →</button>
+        <button class="btn btn-danger" style="padding:.35rem .75rem;font-size:.65rem" onclick="event.stopPropagation();deleteMonth('${k}')">Delete</button>
       </div>
     </div>`;
   }).join('')}</div>`;
@@ -1178,8 +1268,194 @@ function deleteMonth(key) {
   const data = loadAllData();
   delete data[key];
   saveAllData(data);
+  closeDetail();
   renderHistory();
   renderDashboard();
+}
+
+function closeDetail() {
+  document.getElementById('history-detail').style.display = 'none';
+  document.querySelectorAll('.month-entry').forEach(e => e.style.background = '');
+}
+
+function viewMonthDetail(key) {
+  const data = loadAllData();
+  const d = data[key];
+  if (!d) return;
+  const s = d.summary;
+  const cats = s.categories;
+
+  // Highlight selected row
+  document.querySelectorAll('.month-entry').forEach(e => e.style.background = '');
+  event.currentTarget.style.background = 'var(--accent-l)';
+
+  // Title
+  document.getElementById('detail-title').innerHTML = `${d.label} <span style="font-family:'DM Mono',monospace;font-size:.72rem;font-weight:400;color:var(--text3)">Excel values</span>`;
+
+  // Metrics
+  document.getElementById('detail-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">House total</div><div class="metric-value">$${s.houseTotal.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Personal spend</div><div class="metric-value">$${s.personalSpend.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Investments</div><div class="metric-value">$${s.investTotal.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Take home pay</div><div class="metric-value">$${s.pay.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Savings</div><div class="metric-value ${s.savings>=0?'metric-pos':'metric-neg'}">$${s.savings.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Tony contrib</div><div class="metric-value">$${s.tonyContrib.toFixed(0)}</div></div>
+  `;
+
+  // House export
+  const houseRows = [
+    ['Groceries total', cats.Groceries, 'Pak n Save, Woolworths etc'],
+    ['Electricity/Gas', cats.Electricity, 'Genesis Energy'],
+    ['Water', cats.Water, 'Water bill'],
+    ['Council rates', cats['Council Rates'], 'Council payment'],
+    ['Wifi', cats.Wifi, '2degrees / Spark'],
+    ['Insurance', cats.Insurance, 'House insurance'],
+  ].filter(r => r[1] > 0);
+  document.getElementById('detail-house-export').innerHTML = houseRows.length
+    ? `<table class="export-table">
+        <thead><tr style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)"><td style="padding:6px 10px">Column</td><td style="padding:6px 10px">Value</td><td style="padding:6px 10px">Source</td></tr></thead>
+        <tbody>${houseRows.map(r=>`<tr><td style="padding:9px 10px;font-weight:500">${r[0]}</td><td class="col-val" style="padding:9px 10px">${r[1].toFixed(2)}</td><td class="col-note" style="padding:9px 10px">${r[2]}</td></tr>`).join('')}</tbody>
+      </table>`
+    : '<p style="font-size:.875rem;color:var(--text3)">No house expenses recorded.</p>';
+
+  // Personal export
+  const eating=cats['Eating Out']||0, jetts=cats.Jetts||0,
+    sharesies=cats.Sharesies||0, hatch=cats.Hatch||0,
+    ks=cats.KiwiSaver||0, asbInv=cats['ASB Investment']||0,
+    google=cats['Google One']||0, haircut=cats.Haircut||0,
+    health=cats.Health||0, transport=cats.Transport||0,
+    shopping=cats.Shopping||0, travel=cats.Travel||0,
+    royalNZ=cats['Royal NZ Fo']||0;
+  const totalExcInv = eating+jetts+google+haircut+health+transport+shopping+royalNZ;
+  const totalInv = sharesies+hatch+ks+asbInv;
+  const totalExpense = totalExcInv+totalInv;
+  const savingsCalc = s.pay - totalExpense;
+
+  const pRows = [
+    ['Eating out', eating], ['Jetts', jetts],
+    ['(+) Sharesies', sharesies], ['(+) Hatch', hatch],
+    ['(+) KS (KiwiSaver)', ks], ['(+) ASB investment fund', asbInv],
+    ['Google One', google], ['Haircut', haircut], ['Health', health],
+    ['Transport/parking', transport], ['Shopping', shopping], ['Travel', travel],
+    ['Royal New Zealand Fo', royalNZ],
+    ['Take Home pay', s.pay],
+    ['Total (excl investment)', totalExcInv],
+    ['Total expense', totalExpense],
+    ['Savings', savingsCalc],
+  ].filter(r => r[1] !== 0);
+  document.getElementById('detail-personal-export').innerHTML = `<table class="export-table">
+    <thead><tr style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)"><td style="padding:6px 10px">Column</td><td style="padding:6px 10px">Value</td></tr></thead>
+    <tbody>${pRows.map(r=>`<tr><td style="padding:9px 10px;font-weight:500">${r[0]}</td><td class="${r[1]<0?'col-val col-neg':'col-val'}" style="padding:9px 10px">${r[1].toFixed(2)}</td></tr>`).join('')}</tbody>
+  </table>`;
+
+  // Editable transactions table
+  document.getElementById('history-detail').dataset.key = key;
+  renderDetailTxnTable(key);
+
+  // Show panel and scroll to it
+  const panel = document.getElementById('history-detail');
+  panel.style.display = 'block';
+  setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+}
+
+function renderDetailTxnTable(key) {
+  const data = loadAllData();
+  const txns = data[key]?.transactions || [];
+  let thtml = `<div class="result-row result-header"><span>Date</span><span>Description</span><span>Amount</span><span class="hide-mobile">Category</span><span class="hide-mobile">Sheet</span></div>`;
+  txns.forEach((r, i) => {
+    const isIncome = r.amount < 0;
+    thtml += `<div class="result-row">
+      <span style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--text3)">${r.date||''}</span>
+      <span style="font-size:.8rem">${r.description}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:.78rem;font-weight:500;color:${isIncome?'var(--accent)':'var(--text)'}">$${Math.abs(r.amount).toFixed(2)}</span>
+      <span class="hide-mobile"><select class="cat-select" onchange="updateDetailCat('${key}',${i},this.value)">${allCats.map(c=>`<option value="${c}"${r.category===c?' selected':''}>${c}</option>`).join('')}</select></span>
+      <span class="hide-mobile"><span class="badge badge-${r.sheet==='House'?'house':'personal'}">${r.sheet}</span></span>
+    </div>`;
+  });
+  document.getElementById('detail-txn-table').innerHTML = thtml;
+}
+
+function updateDetailCat(key, idx, newCat) {
+  const houseSheetCats = ['Groceries','Electricity','Water','Wifi','Council Rates','Insurance'];
+  const data = loadAllData();
+  if (!data[key]) return;
+  const txn = data[key].transactions[idx];
+  const oldCat = txn.category;
+  if (oldCat !== newCat) saveCorrectionFeedback(txn.description, oldCat, newCat);
+  txn.category = newCat;
+  txn.sheet = houseSheetCats.includes(newCat) ? 'House' : 'Personal';
+  saveAllData(data);
+  viewMonthDetailFromData(key, data);
+}
+
+function viewMonthDetailFromData(key, data) {
+  const d = data[key];
+  if (!d) return;
+  const investCats = ['Sharesies','Hatch','KiwiSaver','ASB Investment'];
+  const skipCats = ['Take Home Pay','Brother Transfer',...investCats];
+  const txns = d.transactions;
+
+  const houseTotal = txns.filter(r=>r.sheet==='House').reduce((s,r)=>s+Math.abs(r.amount),0);
+  const tonyContrib = txns.filter(r=>r.category==='Brother Transfer').reduce((s,r)=>s+Math.abs(r.amount),0);
+  const pay = txns.filter(r=>r.category==='Take Home Pay').reduce((s,r)=>s+Math.abs(r.amount),0);
+  const investTotal = txns.filter(r=>investCats.includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
+  const personalSpend = txns.filter(r=>r.sheet==='Personal'&&!skipCats.includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
+  const savings = pay - personalSpend - investTotal;
+  const cats = {};
+  allCats.forEach(c => cats[c] = txns.filter(r=>r.category===c).reduce((s,r)=>s+Math.abs(r.amount),0));
+
+  data[key].summary = { ...d.summary, houseTotal, tonyContrib, peterContrib:houseTotal-tonyContrib, pay, personalSpend, investTotal, savings, categories:cats };
+  saveAllData(data);
+  renderDashboard();
+
+  document.getElementById('detail-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">House total</div><div class="metric-value">$${houseTotal.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Personal spend</div><div class="metric-value">$${personalSpend.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Investments</div><div class="metric-value">$${investTotal.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Take home pay</div><div class="metric-value">$${pay.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Savings</div><div class="metric-value ${savings>=0?'metric-pos':'metric-neg'}">$${savings.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Tony contrib</div><div class="metric-value">$${tonyContrib.toFixed(0)}</div></div>`;
+
+  const houseRows = [['Groceries total',cats.Groceries,'Pak n Save, Woolworths etc'],['Electricity/Gas',cats.Electricity,'Genesis Energy'],['Water',cats.Water,'Water bill'],['Council rates',cats['Council Rates'],'Council payment'],['Wifi',cats.Wifi,'2degrees / Spark'],['Insurance',cats.Insurance,'House insurance']].filter(r=>r[1]>0);
+  document.getElementById('detail-house-export').innerHTML = houseRows.length
+    ? `<table class="export-table"><thead><tr style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;color:var(--text3)"><td style="padding:6px 10px">Column</td><td style="padding:6px 10px">Value</td><td style="padding:6px 10px">Source</td></tr></thead><tbody>${houseRows.map(r=>`<tr><td style="padding:9px 10px;font-weight:500">${r[0]}</td><td class="col-val" style="padding:9px 10px">${r[1].toFixed(2)}</td><td class="col-note" style="padding:9px 10px">${r[2]}</td></tr>`).join('')}</tbody></table>`
+    : '<p style="font-size:.875rem;color:var(--text3)">No house expenses.</p>';
+
+  const e2=cats['Eating Out']||0,j2=cats.Jetts||0,sh=cats.Sharesies||0,ha=cats.Hatch||0,ks=cats.KiwiSaver||0,ai=cats['ASB Investment']||0,go=cats['Google One']||0,hc=cats.Haircut||0,he=cats.Health||0,tr=cats.Transport||0,sp=cats.Shopping||0,tv=cats.Travel||0,rn=cats['Royal NZ Fo']||0;
+  const tei=e2+j2+go+hc+he+tr+sp+rn, ti=sh+ha+ks+ai, tex=tei+ti, sav=pay-tex;
+  const pRows=[['Eating out',e2],['Jetts',j2],['(+) Sharesies',sh],['(+) Hatch',ha],['(+) KS (KiwiSaver)',ks],['(+) ASB investment fund',ai],['Google One',go],['Haircut',hc],['Health',he],['Transport/parking',tr],['Shopping',sp],['Travel',tv],['Royal New Zealand Fo',rn],['Take Home pay',pay],['Total (excl investment)',tei],['Total expense',tex],['Savings',sav]].filter(r=>r[1]!==0);
+  document.getElementById('detail-personal-export').innerHTML = `<table class="export-table"><thead><tr style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;color:var(--text3)"><td style="padding:6px 10px">Column</td><td style="padding:6px 10px">Value</td></tr></thead><tbody>${pRows.map(r=>`<tr><td style="padding:9px 10px;font-weight:500">${r[0]}</td><td class="${r[1]<0?'col-val col-neg':'col-val'}" style="padding:9px 10px">${r[1].toFixed(2)}</td></tr>`).join('')}</tbody></table>`;
+  renderDetailTxnTable(key);
+}
+
+// ═══════════════════════════
+// CORRECTIONS / AI FEEDBACK
+// ═══════════════════════════
+const CORRECTIONS_KEY = 'pakaraka_corrections';
+function loadCorrections() { try { return JSON.parse(localStorage.getItem(CORRECTIONS_KEY)) || []; } catch { return []; } }
+function saveCorrections(c) { localStorage.setItem(CORRECTIONS_KEY, JSON.stringify(c)); }
+
+function saveCorrectionFeedback(description, fromCat, toCat) {
+  const corrections = loadCorrections();
+  const existing = corrections.find(c => c.description.toLowerCase() === description.toLowerCase());
+  if (existing) {
+    existing.toCat = toCat;
+    existing.count = (existing.count||1)+1;
+    existing.updatedAt = new Date().toISOString();
+  } else {
+    corrections.push({ description, fromCat, toCat, count:1, updatedAt: new Date().toISOString() });
+  }
+  saveCorrections(corrections);
+  showCorrectionToast(`Learnt: "${description}" → ${toCat}`);
+}
+
+let toastTimer = null;
+function showCorrectionToast(msg) {
+  const t = document.getElementById('correction-toast');
+  t.textContent = '✓ ' + msg;
+  t.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
 }
 
 // ═══════════════════════════
