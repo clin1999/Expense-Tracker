@@ -194,6 +194,7 @@ select:focus{outline:none;border-color:var(--accent)}
 .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-family:'DM Mono',monospace;font-size:.63rem;text-transform:uppercase;letter-spacing:.04em;font-weight:500;white-space:nowrap}
 .badge-house{background:var(--blue-l);color:var(--blue)}
 .badge-personal{background:var(--purple-l);color:var(--purple)}
+.badge-work{background:var(--amber-l);color:var(--amber)}
 
 /* RESULT TABLE */
 #results-table-wrap{border:1px solid var(--border);border-radius:8px;overflow:hidden;max-height:360px;overflow-y:auto;margin-bottom:1rem}
@@ -290,7 +291,86 @@ select:focus{outline:none;border-color:var(--accent)}
 }
 .file-chip button:hover { opacity: 1; }
 
-/* CORRECTION TOAST */
+/* DASH TABS */
+.dash-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 1.5rem;
+  padding-top: 1.5rem;
+}
+.dash-tab {
+  padding: .65rem 1.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+  background: transparent;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: .9rem;
+  font-weight: 500;
+  color: var(--text2);
+  transition: all .15s;
+}
+.dash-tab:hover { background: var(--surface2); }
+.dash-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.dash-section { display: none; }
+.dash-section.active { display: block; }
+
+/* TONY TABLE */
+.tony-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 100px 100px 110px;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  font-size: .82rem;
+}
+.tony-row:last-child { border-bottom: none; }
+.tony-header {
+  font-family: 'DM Mono', monospace;
+  font-size: .62rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text3);
+  background: var(--surface2);
+  border-radius: 6px;
+}
+.reimb-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-family: 'DM Mono', monospace;
+  font-size: .65rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  cursor: pointer;
+  border: 1px solid;
+  background: transparent;
+  transition: all .15s;
+}
+.reimb-pending { border-color: var(--amber); color: var(--amber); }
+.reimb-pending:hover { background: var(--amber-l); }
+.reimb-done { border-color: var(--accent); color: var(--accent); background: var(--accent-l); }
+
+/* WORK REIMB TABLE */
+.work-reimb-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 90px 110px 100px;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  font-size: .82rem;
+}
+.work-reimb-row:last-child { border-bottom: none; }
+
+@media(max-width:600px) {
+  .tony-row, .work-reimb-row { grid-template-columns: 80px 1fr 80px; }
+  .tony-row .hide-m, .work-reimb-row .hide-m { display: none; }
+}
+
 #correction-toast {
   position: fixed;
   bottom: 1.5rem;
@@ -426,6 +506,7 @@ select:focus{outline:none;border-color:var(--accent)}
     <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
     <button class="nav-tab" onclick="showPage('categorise')">Categorise</button>
     <button class="nav-tab" onclick="showPage('history')">History</button>
+    <button class="nav-tab" onclick="showPage('settings')">Settings</button>
   </div>
   <div id="user-pill" onclick="forgetUser()" title="Click to switch user">
     <div class="user-avatar" id="user-avatar">?</div>
@@ -438,53 +519,91 @@ select:focus{outline:none;border-color:var(--accent)}
      DASHBOARD PAGE
 ═══════════════════════════════════════════════ -->
 <div id="page-dashboard" class="page active">
-  <div class="page-header">
-    <h1>Overview</h1>
-    <p id="dash-subtitle">Your household finances at a glance</p>
-  </div>
-  <div id="dash-empty" class="card" style="display:none">
+  <div id="dash-empty" class="card" style="display:none;margin-top:1.5rem">
     <div class="empty">
       <div class="empty-icon">📊</div>
-      <p>No data yet — go to <strong>Categorise</strong> to process your first month of transactions.</p>
+      <p>No data yet — go to <strong>Categorise</strong> to process your first month.</p>
     </div>
   </div>
-  <div id="dash-content">
-    <!-- Top metrics -->
-    <div class="metric-grid" id="dash-metrics"></div>
 
-    <!-- Spending trend -->
-    <div class="card">
-      <div class="card-label">Monthly spending trend</div>
-      <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
+  <div id="dash-content" style="display:none">
+    <!-- Dashboard sub-tabs -->
+    <div class="dash-tabs">
+      <button class="dash-tab active" onclick="switchDashTab('house')">🏠 House</button>
+      <button class="dash-tab" onclick="switchDashTab('personal')">👤 Personal</button>
     </div>
 
-    <!-- House vs Personal + Category breakdown -->
-    <div class="two-col">
+    <!-- ── HOUSE TAB ── -->
+    <div id="dash-house" class="dash-section active">
+      <div class="page-header" style="margin-bottom:1.25rem">
+        <h1>House</h1>
+        <p id="house-subtitle">Shared expenses with Tony</p>
+      </div>
+      <div class="metric-grid" id="house-metrics"></div>
       <div class="card">
-        <div class="card-label">House vs personal split</div>
-        <div class="donut-wrap" style="margin-top:.5rem">
-          <canvas id="chart-split" class="donut-canvas"></canvas>
-          <div class="legend" id="legend-split" style="flex-direction:column;gap:8px"></div>
+        <div class="card-label">Monthly house spend</div>
+        <div class="chart-wrap"><canvas id="chart-house-trend"></canvas></div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-label">Peter vs Tony contributions</div>
+          <div class="chart-wrap" style="height:180px"><canvas id="chart-contrib"></canvas></div>
+          <div class="legend" id="legend-contrib" style="margin-top:.75rem"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">House category breakdown — <span id="house-cat-month-label">latest</span></div>
+          <div class="month-pills" id="house-cat-pills"></div>
+          <div class="bar-chart-custom" id="house-cat-bars"></div>
+        </div>
+      </div>
+      <!-- Tony balance tracker -->
+      <div class="card">
+        <div style="display:flex;align-items:baseline;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap">
+          <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600">Tony's contributions</div>
+          <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">per month</span>
+        </div>
+        <div id="tony-contrib-table"></div>
+      </div>
+    </div>
+
+    <!-- ── PERSONAL TAB ── -->
+    <div id="dash-personal" class="dash-section" style="display:none">
+      <div class="page-header" style="margin-bottom:1.25rem">
+        <h1>Personal</h1>
+        <p id="personal-subtitle">Your spending, savings & investments</p>
+      </div>
+      <div class="metric-grid" id="personal-metrics"></div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-label">Monthly spend vs pay</div>
+          <div class="chart-wrap" style="height:200px"><canvas id="chart-personal-trend"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Savings over time</div>
+          <div class="chart-wrap" style="height:200px"><canvas id="chart-savings"></canvas></div>
         </div>
       </div>
       <div class="card">
-        <div class="card-label">Savings over time</div>
-        <div class="chart-wrap" style="height:160px"><canvas id="chart-savings"></canvas></div>
+        <div class="card-label">Investments over time</div>
+        <div class="chart-wrap" style="height:180px"><canvas id="chart-investments"></canvas></div>
+        <div class="legend" id="legend-investments" style="margin-top:.75rem"></div>
       </div>
-    </div>
-
-    <!-- Category breakdown -->
-    <div class="card">
-      <div class="card-label">Category breakdown — <span id="cat-month-label">latest month</span></div>
-      <div class="month-pills" id="cat-month-pills"></div>
-      <div class="bar-chart-custom" id="cat-bars"></div>
-    </div>
-
-    <!-- Peter vs Tony contributions -->
-    <div class="card">
-      <div class="card-label">Peter vs Tony — house contributions</div>
-      <div class="chart-wrap" style="height:180px"><canvas id="chart-contrib"></canvas></div>
-      <div class="legend" id="legend-contrib"></div>
+      <div class="card">
+        <div class="card-label">Personal category breakdown — <span id="personal-cat-month-label">latest</span></div>
+        <div class="month-pills" id="personal-cat-pills"></div>
+        <div class="bar-chart-custom" id="personal-cat-bars"></div>
+      </div>
+      <!-- Work reimbursement tracker -->
+      <div class="card" id="work-reimb-card">
+        <div style="display:flex;align-items:baseline;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap;justify-content:space-between">
+          <div>
+            <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600">Work reimbursements</div>
+            <div style="font-size:.8rem;color:var(--text2);margin-top:2px">Track what your employer owes you back</div>
+          </div>
+          <div id="work-reimb-total" style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:600;color:var(--amber)"></div>
+        </div>
+        <div id="work-reimb-table"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -616,6 +735,16 @@ select:focus{outline:none;border-color:var(--accent)}
         <div id="personal-export"></div>
       </div>
 
+      <!-- Work export -->
+      <div class="card" id="work-export-card" style="display:none">
+        <div style="display:flex;align-items:baseline;gap:.5rem;margin-bottom:.85rem">
+          <strong style="font-family:'Playfair Display',serif;font-size:1rem">Work Expenses</strong>
+          <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--amber);text-transform:uppercase;letter-spacing:.06em">reimbursable</span>
+        </div>
+        <p style="font-size:.8rem;color:var(--text2);margin-bottom:.85rem">These are work expenses to claim back from your employer:</p>
+        <div id="work-export"></div>
+      </div>
+
       <div class="controls">
         <button class="btn btn-primary" id="save-btn" onclick="saveCurrentMonth()">💾 Re-save to dashboard</button>
         <span id="save-confirm" style="display:none;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--accent)">✓ Auto-saved!</span>
@@ -679,6 +808,105 @@ select:focus{outline:none;border-color:var(--accent)}
     <div class="card">
       <div class="card-label" style="margin-bottom:.75rem">All transactions</div>
       <div id="detail-txn-table" style="max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SETTINGS PAGE
+═══════════════════════════════════════════════ -->
+<div id="page-settings" class="page">
+  <div class="page-header">
+    <h1>Settings</h1>
+    <p>Manage categories and corrections</p>
+  </div>
+
+  <!-- Category manager -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.75rem">
+      <div>
+        <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;margin-bottom:3px">Categories</div>
+        <div style="font-size:.8rem;color:var(--text2)">Add or remove categories. Changes sync to all devices.</div>
+      </div>
+    </div>
+
+    <!-- Add new category -->
+    <div style="display:flex;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap">
+      <input type="text" id="new-cat-name" placeholder="Category name e.g. Petrol"
+        style="padding:.5rem .85rem;border:1px solid var(--border2);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.875rem;color:var(--text);background:var(--surface2);flex:1;min-width:160px"
+        onkeydown="if(event.key==='Enter')addCategory()">
+      <select id="new-cat-sheet" style="min-width:120px">
+        <option value="Personal">Personal</option>
+        <option value="House">House</option>
+        <option value="Work">Work</option>
+      </select>
+      <button class="btn btn-primary" onclick="addCategory()">+ Add category</button>
+    </div>
+
+    <!-- House categories -->
+    <div style="margin-bottom:1.25rem">
+      <div class="card-label" style="margin-bottom:.6rem">🏠 House expenses (shared with Tony)</div>
+      <div id="house-cats-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </div>
+
+    <!-- Personal categories -->
+    <div style="margin-bottom:1.25rem">
+      <div class="card-label" style="margin-bottom:.6rem">👤 Personal expenses (Peter)</div>
+      <div id="personal-cats-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </div>
+
+    <!-- Work categories -->
+    <div>
+      <div class="card-label" style="margin-bottom:.6rem">💼 Work expenses (reimbursable)</div>
+      <div id="work-cats-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </div>
+  </div>
+
+  <!-- Corrections log -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.75rem">
+      <div>
+        <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;margin-bottom:3px">Learnt corrections</div>
+        <div style="font-size:.8rem;color:var(--text2)">These are automatically included in every future Claude prompt.</div>
+      </div>
+      <button class="btn btn-danger" style="padding:.35rem .85rem;font-size:.65rem" onclick="clearCorrections()">Clear all</button>
+    </div>
+    <div id="corrections-list">
+      <div class="empty" style="padding:1.5rem"><div class="empty-icon" style="font-size:1.5rem">🧠</div><p>No corrections yet — change a category in History to teach Claude.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- SPLIT MODAL -->
+<div id="split-modal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.35);display:none;align-items:center;justify-content:center;padding:1rem">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.75rem;max-width:420px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.12)">
+    <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:600;margin-bottom:4px">Split transaction</div>
+    <div id="split-modal-desc" style="font-size:.8rem;color:var(--text2);margin-bottom:1.25rem"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+      <div>
+        <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:.4rem">Split A — amount</div>
+        <input type="number" id="split-amount-a" step="0.01" min="0"
+          style="width:100%;padding:.5rem .75rem;border:1px solid var(--border2);border-radius:6px;font-family:'DM Mono',monospace;font-size:.9rem;background:var(--surface2);color:var(--text)"
+          oninput="updateSplitB()">
+        <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:.6rem 0 .4rem">Category</div>
+        <select id="split-cat-a" style="width:100%"></select>
+      </div>
+      <div>
+        <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:.4rem">Split B — remainder</div>
+        <input type="number" id="split-amount-b" step="0.01" min="0"
+          style="width:100%;padding:.5rem .75rem;border:1px solid var(--border2);border-radius:6px;font-family:'DM Mono',monospace;font-size:.9rem;background:var(--surface2);color:var(--text)"
+          oninput="updateSplitA()">
+        <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:.6rem 0 .4rem">Category</div>
+        <select id="split-cat-b" style="width:100%"></select>
+      </div>
+    </div>
+
+    <div id="split-error" style="display:none;font-size:.78rem;color:var(--red);font-family:'DM Mono',monospace;margin-bottom:.75rem"></div>
+
+    <div style="display:flex;gap:.75rem;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closeSplitModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmSplit()">Split →</button>
     </div>
   </div>
 </div>
@@ -764,6 +992,48 @@ async function saveCorrections(list) {
   } catch(e) { console.error('Corrections save error:', e); }
 }
 
+// Category management
+const DEFAULT_HOUSE_CATS = ['Groceries','Electricity','Water','Wifi','Council Rates','Insurance'];
+const DEFAULT_PERSONAL_CATS = ['Eating Out','Jetts','Sharesies','Hatch','KiwiSaver','ASB Investment',
+  'Take Home Pay','Brother Transfer','Google One','Haircut','Health',
+  'Transport','Travel','Shopping','2degrees Mobile','Royal NZ Fo','Other'];
+const DEFAULT_WORK_CATS = ['Work Expenses','Work Travel','Work Meals','Work Equipment'];
+
+let _catsCache = null;
+
+async function loadCategories() {
+  if (_catsCache) return _catsCache;
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'categories'));
+    if (snap.exists()) {
+      _catsCache = snap.data();
+      if (!_catsCache.work) _catsCache.work = DEFAULT_WORK_CATS; // migrate old data
+    } else {
+      _catsCache = { house: DEFAULT_HOUSE_CATS, personal: DEFAULT_PERSONAL_CATS, work: DEFAULT_WORK_CATS };
+    }
+    return _catsCache;
+  } catch(e) {
+    return { house: DEFAULT_HOUSE_CATS, personal: DEFAULT_PERSONAL_CATS };
+  }
+}
+
+async function saveCategories(cats) {
+  _catsCache = cats;
+  try {
+    await setDoc(doc(db, 'settings', 'categories'), cats);
+  } catch(e) { console.error('Categories save error:', e); }
+}
+
+async function getAllCats() {
+  const cats = await loadCategories();
+  return [...cats.house, ...cats.personal];
+}
+
+async function getHouseCats() {
+  const cats = await loadCategories();
+  return cats.house;
+}
+
 // Sync indicator
 let syncTimer = null;
 function showSyncIndicator(msg) {
@@ -800,10 +1070,11 @@ async function showPage(p) {
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
-  const tabs = ['dashboard','categorise','history'];
+  const tabs = ['dashboard','categorise','history','settings'];
   document.querySelectorAll('.nav-tab')[tabs.indexOf(p)].classList.add('active');
   if (p === 'dashboard') await renderDashboard();
   if (p === 'history') await renderHistory();
+  if (p === 'settings') await renderSettings();
 }
 
 function switchInner(s) {
@@ -963,6 +1234,10 @@ async function goToPrompt() {
   const y = document.getElementById('year-select').value;
   currentMonthKey = monthKey(m, y);
 
+  const cats = await loadCategories();
+  const houseCatsList = cats.house.join(', ');
+  const personalCatsList = cats.personal.join(', ');
+
   // Build corrections block from memory
   const corrections = await loadCorrections();
   let correctionsBlock = '';
@@ -973,11 +1248,12 @@ async function goToPrompt() {
 
   const prompt = `Please categorise these ASB bank transactions for ${m} ${y} and return ONLY a JSON array with no other text, no markdown fences.
 
-Each object must have: date (DD/MM), description (short merchant name), amount (positive=expense, negative=income), category, sheet ("House" or "Personal" or "Skip"), notes.
+Each object must have: date (DD/MM), description (short merchant name), amount (positive=expense, negative=income), category, sheet ("House" or "Personal" or "Work" or "Skip"), notes.
 
 Categories:
-HOUSE sheet: Groceries (Pak n Save, Woolworths, Countdown, New World, Lim Chhour, Taiping Asian, Smart Supermarket), Electricity (Genesis Energy, Mercury, Contact), Water, Council Rates, Wifi (2degrees, Spark broadband), Insurance (IAG, State Insurance)
-PERSONAL sheet: Eating Out (restaurants/cafes/fast food), Jetts (DEBITSUCESS JETTS), Sharesies, Hatch, KiwiSaver (PM TRANSFER kiwisaver), ASB Investment (ASB Group Investment/Wealth Mgmt), Google One, Haircut (Just Cuts), Health (Chemist Warehouse/pharmacy), Transport (Uber/parking/Auckland Transport), Shopping, Travel (Avis/airline/accommodation/overseas), Royal NZ Fo, 2degrees Mobile, Other
+HOUSE sheet: ${houseCatsList}
+PERSONAL sheet: ${personalCatsList}
+WORK sheet (reimbursable work expenses): ${cats.work ? cats.work.join(', ') : DEFAULT_WORK_CATS.join(', ')}
 PERSONAL sheet special: Take Home Pay (Cass Medical income — positive amount), Brother Transfer (D/C FROM MR T LIN — money from Tony)
 SKIP: credit card payments (PAYMENT - THANK YOU), ASB direct debit for credit card (D/D LIN C)
 ${correctionsBlock}
@@ -1028,10 +1304,20 @@ function loadResults() {
   }
 }
 
-const allCats = ['Groceries','Electricity','Water','Wifi','Council Rates','Insurance',
-  'Eating Out','Jetts','Sharesies','Hatch','KiwiSaver','ASB Investment',
-  'Take Home Pay','Brother Transfer','Google One','Haircut','Health',
-  'Transport','Travel','Shopping','2degrees Mobile','Royal NZ Fo','Other'];
+// allCats is now loaded dynamically from Firebase
+// Use getAllCats() async where needed, or _catsCache for sync contexts after load
+function getAllCatsSync() {
+  if (!_catsCache) return [...DEFAULT_HOUSE_CATS, ...DEFAULT_PERSONAL_CATS, ...DEFAULT_WORK_CATS];
+  return [..._catsCache.house, ..._catsCache.personal, ...(_catsCache.work||DEFAULT_WORK_CATS)];
+}
+function getHouseCatsSync() {
+  if (!_catsCache) return DEFAULT_HOUSE_CATS;
+  return _catsCache.house;
+}
+function getWorkCatsSync() {
+  if (!_catsCache) return DEFAULT_WORK_CATS;
+  return _catsCache.work || DEFAULT_WORK_CATS;
+}
 
 function sumCat(cat, results) {
   results = results || categorisedResults;
@@ -1044,6 +1330,7 @@ function buildStep4() {
 
   const pay = sumCat('Take Home Pay');
   const houseTotal = categorisedResults.filter(r=>r.sheet==='House').reduce((s,r)=>s+Math.abs(r.amount),0);
+  const workTotal = categorisedResults.filter(r=>r.sheet==='Work').reduce((s,r)=>s+Math.abs(r.amount),0);
   const investTotal = sumCat('Sharesies')+sumCat('Hatch')+sumCat('KiwiSaver')+sumCat('ASB Investment');
   const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!['Take Home Pay','Brother Transfer','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const savings = pay - (personalSpend + investTotal + houseTotal/2);
@@ -1052,20 +1339,26 @@ function buildStep4() {
     <div class="metric"><div class="metric-label">Transactions</div><div class="metric-value">${categorisedResults.length}</div></div>
     <div class="metric"><div class="metric-label">House total</div><div class="metric-value">$${houseTotal.toFixed(0)}</div></div>
     <div class="metric"><div class="metric-label">Personal spend</div><div class="metric-value">$${personalSpend.toFixed(0)}</div></div>
+    ${workTotal > 0 ? `<div class="metric"><div class="metric-label">Work (reimb.)</div><div class="metric-value" style="color:var(--amber)">$${workTotal.toFixed(0)}</div></div>` : ''}
     ${pay ? `<div class="metric"><div class="metric-label">Take home pay</div><div class="metric-value">$${pay.toFixed(0)}</div></div>` : ''}
     ${pay ? `<div class="metric"><div class="metric-label">Est. savings</div><div class="metric-value ${savings>=0?'metric-pos':'metric-neg'}">$${savings.toFixed(0)}</div></div>` : ''}
   `;
 
   // Results table
-  let html = `<div class="result-row result-header"><span>Date</span><span>Description</span><span>Amount</span><span class="hide-mobile">Category</span><span class="hide-mobile">Sheet</span></div>`;
+  let html = `<div class="result-row result-header" style="grid-template-columns:68px 1fr 80px 138px 70px 60px"><span>Date</span><span>Description</span><span>Amount</span><span class="hide-mobile">Category</span><span class="hide-mobile">Sheet</span><span class="hide-mobile"></span></div>`;
   categorisedResults.forEach((r,i) => {
     const isIncome = r.amount < 0;
-    html += `<div class="result-row">
+    const isSplit = r._splitFrom !== undefined;
+    html += `<div class="result-row" style="grid-template-columns:68px 1fr 80px 138px 70px 60px;${isSplit?'background:var(--accent-l);':''}">
       <span style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--text3)">${r.date||''}</span>
-      <span>${r.description}</span>
+      <span style="font-size:.8rem">${isSplit?'↳ ':''}<span style="${isSplit?'color:var(--accent)':''}">${r.description}</span></span>
       <span style="font-family:'DM Mono',monospace;font-size:.78rem;font-weight:500;color:${isIncome?'var(--accent)':'var(--text)'}">$${Math.abs(r.amount).toFixed(2)}</span>
-      <span class="hide-mobile"><select class="cat-select" onchange="categorisedResults[${i}].category=this.value;buildStep4()">${allCats.map(c=>`<option value="${c}"${r.category===c?' selected':''}>${c}</option>`).join('')}</select></span>
-      <span class="hide-mobile"><span class="badge badge-${r.sheet==='House'?'house':'personal'}">${r.sheet}</span></span>
+      <span class="hide-mobile"><select class="cat-select" onchange="categorisedResults[${i}].category=this.value;categorisedResults[${i}].sheet=getHouseCatsSync().includes(this.value)?'House':getWorkCatsSync().includes(this.value)?'Work':'Personal';buildStep4()">${getAllCatsSync().map(c=>`<option value="${c}"${r.category===c?' selected':''}>${c}</option>`).join('')}</select></span>
+      <span class="hide-mobile"><span class="badge badge-${r.sheet==='House'?'house':r.sheet==='Work'?'work':'personal'}">${r.sheet}</span></span>
+      <span class="hide-mobile">${isSplit
+        ? `<button onclick="unsplitTransaction(${r._splitFrom})" title="Unsplit" style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text3);font-family:'DM Mono',monospace;padding:2px 4px;border-radius:4px;border:1px solid var(--border)" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">unsplit</button>`
+        : `<button onclick="openSplitModal(${i})" title="Split this transaction" style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text3);font-family:'DM Mono',monospace;padding:2px 4px;border-radius:4px;border:1px solid var(--border)" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'">split</button>`
+      }</span>
     </div>`;
   });
   document.getElementById('results-table-wrap').innerHTML = html;
@@ -1110,6 +1403,26 @@ function buildStep4() {
     <tbody>${pRows.map(r=>`<tr><td style="padding:9px 10px;font-weight:500">${r[0]}</td><td class="${r[1]<0?'col-val col-neg':'col-val'}" style="padding:9px 10px">${r[1].toFixed(2)}</td></tr>`).join('')}</tbody>
   </table>`;
 
+  // Work export
+  const workTxns = categorisedResults.filter(r => r.sheet === 'Work');
+  const workCard = document.getElementById('work-export-card');
+  if (workTxns.length) {
+    workCard.style.display = 'block';
+    const workTotal = workTxns.reduce((s,r) => s + Math.abs(r.amount), 0);
+    document.getElementById('work-export').innerHTML = `
+      <table class="export-table">
+        <thead><tr style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">
+          <td style="padding:6px 10px">Date</td><td style="padding:6px 10px">Description</td><td style="padding:6px 10px">Category</td><td style="padding:6px 10px">Amount</td>
+        </tr></thead>
+        <tbody>
+          ${workTxns.map(r=>`<tr><td style="padding:8px 10px;font-family:'DM Mono',monospace;font-size:.72rem;color:var(--text3)">${r.date}</td><td style="padding:8px 10px;font-weight:500">${r.description}</td><td style="padding:8px 10px;font-size:.8rem;color:var(--text2)">${r.category}</td><td class="col-val" style="padding:8px 10px">$${Math.abs(r.amount).toFixed(2)}</td></tr>`).join('')}
+          <tr style="border-top:2px solid var(--border)"><td colspan="3" style="padding:9px 10px;font-weight:600">Total to claim</td><td class="col-val" style="padding:9px 10px;font-size:1.05rem">$${workTotal.toFixed(2)}</td></tr>
+        </tbody>
+      </table>`;
+  } else {
+    workCard.style.display = 'none';
+  }
+
   document.getElementById('save-confirm').style.display = 'none';
 }
 
@@ -1143,6 +1456,7 @@ async function _doSave() {
     council=sumCat('Council Rates'), insurance=sumCat('Insurance');
   const investTotal = sharesies+hatch+ks+asbInv;
   const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!['Take Home Pay','Brother Transfer','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
+  const workTotal = categorisedResults.filter(r=>r.sheet==='Work').reduce((s,r)=>s+Math.abs(r.amount),0);
   const savings = pay - personalSpend - investTotal;
 
   data[currentMonthKey] = {
@@ -1153,7 +1467,7 @@ async function _doSave() {
     transactions: categorisedResults,
     summary: {
       houseTotal, tonyContrib, peterContrib: houseTotal - tonyContrib,
-      pay, personalSpend, investTotal, savings,
+      pay, personalSpend, investTotal, workTotal, savings,
       categories: {
         Groceries:groceries, Electricity:electricity, Water:water,
         'Council Rates':council, Wifi:wifi, Insurance:insurance,
@@ -1190,119 +1504,159 @@ async function renderDashboard() {
 
   const latest = data[keys[keys.length-1]];
   const prev = keys.length > 1 ? data[keys[keys.length-2]] : null;
-
-  // subtitle
-  document.getElementById('dash-subtitle').textContent = `Last updated: ${latest.label} · ${keys.length} month${keys.length>1?'s':''} of data`;
-
-  // Top metrics
   const s = latest.summary;
-  const prevS = prev ? prev.summary : null;
+  const prevS = prev?.summary;
+  const labels = keys.map(k => monthLabel(k));
+
   function trendBadge(curr, prevVal) {
     if (!prevVal) return '';
-    const diff = ((curr - prevVal)/prevVal*100).toFixed(0);
+    const diff = ((curr-prevVal)/prevVal*100).toFixed(0);
     if (Math.abs(diff) < 2) return `<span class="trend trend-neutral">→ ${diff}%</span>`;
-    return diff > 0
-      ? `<span class="trend trend-up">↑ ${diff}%</span>`
-      : `<span class="trend trend-down">↓ ${Math.abs(diff)}%</span>`;
+    return diff > 0 ? `<span class="trend trend-up">↑ ${diff}%</span>` : `<span class="trend trend-down">↓ ${Math.abs(diff)}%</span>`;
   }
-  document.getElementById('dash-metrics').innerHTML = `
-    <div class="metric"><div class="metric-label">House total</div><div class="metric-value">$${s.houseTotal.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.houseTotal, prevS?.houseTotal)} vs last month</div></div>
-    <div class="metric"><div class="metric-label">Personal spend</div><div class="metric-value">$${s.personalSpend.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.personalSpend, prevS?.personalSpend)} vs last month</div></div>
-    <div class="metric"><div class="metric-label">Investments</div><div class="metric-value">$${s.investTotal.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.investTotal, prevS?.investTotal)} vs last month</div></div>
-    <div class="metric"><div class="metric-label">Take home pay</div><div class="metric-value">$${s.pay.toFixed(0)}</div><div class="metric-sub">${latest.label}</div></div>
-    <div class="metric"><div class="metric-label">Savings</div><div class="metric-value ${s.savings>=0?'metric-pos':'metric-neg'}">$${s.savings.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.savings, prevS?.savings)} vs last month</div></div>
-    <div class="metric"><div class="metric-label">Tony's contrib</div><div class="metric-value">$${s.tonyContrib.toFixed(0)}</div><div class="metric-sub">${latest.label}</div></div>
+
+  // ── HOUSE TAB ──
+  document.getElementById('house-subtitle').textContent = `Last updated: ${latest.label} · ${keys.length} month${keys.length>1?'s':''} of data`;
+
+  document.getElementById('house-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">House total</div><div class="metric-value">$${s.houseTotal.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.houseTotal,prevS?.houseTotal)} vs last month</div></div>
+    <div class="metric"><div class="metric-label">Peter pays</div><div class="metric-value">$${(s.peterContrib||s.houseTotal-s.tonyContrib).toFixed(0)}</div><div class="metric-sub">${latest.label}</div></div>
+    <div class="metric"><div class="metric-label">Tony pays</div><div class="metric-value">$${s.tonyContrib.toFixed(0)}</div><div class="metric-sub">${latest.label}</div></div>
+    <div class="metric"><div class="metric-label">Half share each</div><div class="metric-value">$${(s.houseTotal/2).toFixed(0)}</div><div class="metric-sub">ideal split</div></div>
   `;
 
-  // Trend chart
-  destroyChart('trend');
-  const labels = keys.map(k => monthLabel(k));
+  // House trend chart
+  destroyChart('house-trend');
   const houseTotals = keys.map(k => data[k].summary.houseTotal);
-  const personalTotals = keys.map(k => data[k].summary.personalSpend);
-  const savingsTrend = keys.map(k => data[k].summary.savings);
+  const houseCatKeys = ['Groceries','Electricity','Water','Wifi','Council Rates','Insurance'];
+  chartInstances['house-trend'] = new Chart(document.getElementById('chart-house-trend'), {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Groceries', data:keys.map(k=>data[k].summary.categories?.Groceries||0), backgroundColor:'rgba(45,90,61,0.8)', borderRadius:3, borderSkipped:false },
+      { label:'Electricity', data:keys.map(k=>data[k].summary.categories?.Electricity||0), backgroundColor:'rgba(122,79,16,0.8)', borderRadius:3, borderSkipped:false },
+      { label:'Wifi', data:keys.map(k=>data[k].summary.categories?.Wifi||0), backgroundColor:'rgba(26,61,107,0.8)', borderRadius:3, borderSkipped:false },
+      { label:'Other house', data:keys.map(k=>{const c=data[k].summary.categories||{};return (c.Water||0)+(c['Council Rates']||0)+(c.Insurance||0);}), backgroundColor:'rgba(150,130,110,0.7)', borderRadius:3, borderSkipped:false },
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:true,position:'top',labels:{font:{family:'DM Mono',size:10},usePointStyle:true,pointStyleWidth:8}},tooltip:{titleFont:{family:'DM Mono'},bodyFont:{family:'DM Sans'},callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y?.toFixed(0)}`}}},
+      scales:{x:{stacked:true,grid:{display:false},ticks:{font:{family:'DM Mono',size:10}}},y:{stacked:true,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{family:'DM Mono',size:10},callback:v=>'$'+v}}} }
+  });
 
-  chartInstances['trend'] = new Chart(document.getElementById('chart-trend'), {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        { label:'House', data:houseTotals, backgroundColor:'rgba(45,90,61,0.75)', borderRadius:4, borderSkipped:false },
-        { label:'Personal', data:personalTotals, backgroundColor:'rgba(139,74,28,0.75)', borderRadius:4, borderSkipped:false },
-        { label:'Savings', data:savingsTrend, type:'line', borderColor:'#1a3d6b', backgroundColor:'rgba(26,61,107,0.08)', tension:.4, pointRadius:4, pointBackgroundColor:'#1a3d6b', borderWidth:2, fill:true }
-      ]
-    },
-    options: {
-      responsive:true, maintainAspectRatio:false,
+  // Peter vs Tony chart
+  destroyChart('contrib');
+  const peterContribs = keys.map(k => data[k].summary.peterContrib||(data[k].summary.houseTotal-data[k].summary.tonyContrib));
+  const tonyContribs = keys.map(k => data[k].summary.tonyContrib);
+  chartInstances['contrib'] = new Chart(document.getElementById('chart-contrib'), {
+    type:'bar',
+    data:{ labels, datasets:[
+      {label:'Peter',data:peterContribs,backgroundColor:'rgba(45,90,61,0.75)',borderRadius:4,borderSkipped:false},
+      {label:'Tony',data:tonyContribs,backgroundColor:'rgba(26,61,107,0.75)',borderRadius:4,borderSkipped:false}
+    ]},
+    options:{ responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{titleFont:{family:'DM Mono'},bodyFont:{family:'DM Sans'},callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y?.toFixed(0)}`}}},
+      scales:{x:{grid:{display:false},ticks:{font:{family:'DM Mono',size:10}}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{family:'DM Mono',size:10},callback:v=>'$'+v}}} }
+  });
+  document.getElementById('legend-contrib').innerHTML = `
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(45,90,61,0.8)"></div>Peter</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(26,61,107,0.8)"></div>Tony</div>`;
+
+  // House category bars
+  const latestKey = keys[keys.length-1];
+  renderHouseCatBars(latestKey, data);
+  document.getElementById('house-cat-pills').innerHTML = keys.map(k=>`<button class="month-pill${k===latestKey?' active':''}" onclick="selectHouseCatMonth('${k}')">${monthLabel(k)}</button>`).join('');
+
+  // Tony contributions table
+  const tonyRows = keys.slice().reverse().map(k => {
+    const d = data[k]; const ms = d.summary;
+    const ideal = (ms.houseTotal/2).toFixed(2);
+    const actual = ms.tonyContrib.toFixed(2);
+    const diff = (ms.tonyContrib - ms.houseTotal/2);
+    const diffStr = diff >= 0 ? `<span style="color:var(--accent)">+$${diff.toFixed(0)}</span>` : `<span style="color:var(--red)">-$${Math.abs(diff).toFixed(0)}</span>`;
+    return `<div class="tony-row">
+      <span style="font-family:'DM Mono',monospace;font-size:.72rem">${d.label}</span>
+      <span class="hide-m" style="font-family:'DM Mono',monospace;font-size:.72rem;color:var(--text3)">House: $${ms.houseTotal.toFixed(0)}</span>
+      <span class="hide-m" style="font-family:'DM Mono',monospace;font-size:.72rem">Half: $${ideal}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:.72rem;font-weight:500">Paid: $${actual}</span>
+      <span>${diffStr}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('tony-contrib-table').innerHTML = `
+    <div class="tony-row tony-header"><span>Month</span><span class="hide-m">House total</span><span class="hide-m">Half share</span><span>Tony paid</span><span>Difference</span></div>
+    ${tonyRows}`;
+
+  // ── PERSONAL TAB ──
+  document.getElementById('personal-subtitle').textContent = `Last updated: ${latest.label} · ${keys.length} month${keys.length>1?'s':''} of data`;
+
+  document.getElementById('personal-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Take home pay</div><div class="metric-value">$${s.pay.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.pay,prevS?.pay)} vs last month</div></div>
+    <div class="metric"><div class="metric-label">Personal spend</div><div class="metric-value">$${s.personalSpend.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.personalSpend,prevS?.personalSpend)} vs last month</div></div>
+    <div class="metric"><div class="metric-label">Investments</div><div class="metric-value">$${s.investTotal.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.investTotal,prevS?.investTotal)} vs last month</div></div>
+    <div class="metric"><div class="metric-label">Savings</div><div class="metric-value ${s.savings>=0?'metric-pos':'metric-neg'}">$${s.savings.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.savings,prevS?.savings)} vs last month</div></div>
+    ${(s.workTotal||0)>0?`<div class="metric"><div class="metric-label">Work to claim</div><div class="metric-value" style="color:var(--amber)">$${s.workTotal.toFixed(0)}</div><div class="metric-sub">reimbursable</div></div>`:''}
+  `;
+
+  // Personal spend vs pay chart
+  destroyChart('personal-trend');
+  chartInstances['personal-trend'] = new Chart(document.getElementById('chart-personal-trend'), {
+    type:'bar',
+    data:{ labels, datasets:[
+      {label:'Take home pay',data:keys.map(k=>data[k].summary.pay||0),backgroundColor:'rgba(45,90,61,0.2)',borderColor:'rgba(45,90,61,0.8)',borderWidth:2,type:'line',tension:.4,pointRadius:3,fill:false},
+      {label:'Personal spend',data:keys.map(k=>data[k].summary.personalSpend||0),backgroundColor:'rgba(139,74,28,0.75)',borderRadius:4,borderSkipped:false},
+      {label:'Investments',data:keys.map(k=>data[k].summary.investTotal||0),backgroundColor:'rgba(26,61,107,0.7)',borderRadius:4,borderSkipped:false},
+    ]},
+    options:{ responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:true,position:'top',labels:{font:{family:'DM Mono',size:10},usePointStyle:true,pointStyleWidth:8}},tooltip:{titleFont:{family:'DM Mono'},bodyFont:{family:'DM Sans'},callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y?.toFixed(0)}`}}},
-      scales:{x:{grid:{display:false},ticks:{font:{family:'DM Mono',size:10}}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{family:'DM Mono',size:10},callback:v=>'$'+v}}}
-    }
+      scales:{x:{stacked:true,grid:{display:false},ticks:{font:{family:'DM Mono',size:10}}},y:{stacked:false,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{family:'DM Mono',size:10},callback:v=>'$'+v}}} }
   });
-
-  // Split donut
-  destroyChart('split');
-  const allHouse = keys.reduce((s,k)=>s+data[k].summary.houseTotal,0);
-  const allPersonal = keys.reduce((s,k)=>s+data[k].summary.personalSpend,0);
-  const allInvest = keys.reduce((s,k)=>s+data[k].summary.investTotal,0);
-  chartInstances['split'] = new Chart(document.getElementById('chart-split'), {
-    type:'doughnut',
-    data:{
-      labels:['House','Personal','Investments'],
-      datasets:[{data:[allHouse,allPersonal,allInvest],backgroundColor:['rgba(45,90,61,0.8)','rgba(139,74,28,0.8)','rgba(26,61,107,0.8)'],borderWidth:2,borderColor:'#fff',hoverOffset:4}]
-    },
-    options:{responsive:false,plugins:{legend:{display:false},tooltip:{titleFont:{family:'DM Mono'},bodyFont:{family:'DM Sans'},callbacks:{label:ctx=>`${ctx.label}: $${ctx.parsed?.toFixed(0)}`}}},cutout:'65%'}
-  });
-  const total = allHouse+allPersonal+allInvest;
-  document.getElementById('legend-split').innerHTML = [
-    {label:'House',val:allHouse,color:'rgba(45,90,61,0.8)'},
-    {label:'Personal',val:allPersonal,color:'rgba(139,74,28,0.8)'},
-    {label:'Investments',val:allInvest,color:'rgba(26,61,107,0.8)'}
-  ].map(l=>`<div class="legend-item"><div class="legend-dot" style="background:${l.color}"></div><div><div style="font-weight:500;font-size:.82rem">${l.label}</div><div style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--text3)">$${l.val.toFixed(0)} · ${(l.val/total*100).toFixed(0)}%</div></div></div>`).join('');
 
   // Savings line
   destroyChart('savings');
+  const savingsTrend = keys.map(k => data[k].summary.savings||0);
   chartInstances['savings'] = new Chart(document.getElementById('chart-savings'), {
     type:'line',
     data:{labels,datasets:[{label:'Savings',data:savingsTrend,borderColor:'#2d5a3d',backgroundColor:'rgba(45,90,61,0.08)',tension:.4,pointRadius:4,pointBackgroundColor:savingsTrend.map(v=>v>=0?'#2d5a3d':'#a02828'),borderWidth:2,fill:true}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{titleFont:{family:'DM Mono'},bodyFont:{family:'DM Sans'},callbacks:{label:ctx=>`Savings: $${ctx.parsed.y?.toFixed(0)}`}}},scales:{x:{grid:{display:false},ticks:{font:{family:'DM Mono',size:9}}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{family:'DM Mono',size:9},callback:v=>'$'+v}}}}
   });
 
-  // Category bars — default to latest month
-  renderCatBars(keys[keys.length-1], data);
-
-  // Month pills for category
-  document.getElementById('cat-month-pills').innerHTML = keys.map(k=>`<button class="month-pill${k===keys[keys.length-1]?' active':''}" onclick="selectCatMonth('${k}')">${monthLabel(k)}</button>`).join('');
-
-  // Peter vs Tony contributions
-  destroyChart('contrib');
-  const peterContribs = keys.map(k => data[k].summary.peterContrib || (data[k].summary.houseTotal - data[k].summary.tonyContrib));
-  const tonyContribs = keys.map(k => data[k].summary.tonyContrib);
-  chartInstances['contrib'] = new Chart(document.getElementById('chart-contrib'), {
-    type:'bar',
-    data:{
-      labels,
-      datasets:[
-        {label:'Peter',data:peterContribs,backgroundColor:'rgba(45,90,61,0.75)',borderRadius:4,borderSkipped:false},
-        {label:'Tony',data:tonyContribs,backgroundColor:'rgba(26,61,107,0.75)',borderRadius:4,borderSkipped:false}
-      ]
-    },
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{titleFont:{family:'DM Mono'},bodyFont:{family:'DM Sans'},callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y?.toFixed(0)}`}}},
-      scales:{x:{stacked:false,grid:{display:false},ticks:{font:{family:'DM Mono',size:10}}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{family:'DM Mono',size:10},callback:v=>'$'+v}}}
-    }
+  // Investments chart
+  destroyChart('investments');
+  chartInstances['investments'] = new Chart(document.getElementById('chart-investments'), {
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Sharesies',data:keys.map(k=>data[k].summary.categories?.Sharesies||0),borderColor:'#2d5a3d',backgroundColor:'transparent',tension:.4,pointRadius:3,borderWidth:2},
+      {label:'Hatch',data:keys.map(k=>data[k].summary.categories?.Hatch||0),borderColor:'#8b4a1c',backgroundColor:'transparent',tension:.4,pointRadius:3,borderWidth:2},
+      {label:'KiwiSaver',data:keys.map(k=>data[k].summary.categories?.KiwiSaver||0),borderColor:'#1a3d6b',backgroundColor:'transparent',tension:.4,pointRadius:3,borderWidth:2},
+      {label:'ASB Fund',data:keys.map(k=>data[k].summary.categories?.['ASB Investment']||0),borderColor:'#6b3d7a',backgroundColor:'transparent',tension:.4,pointRadius:3,borderWidth:2},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{titleFont:{family:'DM Mono'},bodyFont:{family:'DM Sans'},callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y?.toFixed(0)}`}}},scales:{x:{grid:{display:false},ticks:{font:{family:'DM Mono',size:9}}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{family:'DM Mono',size:9},callback:v=>'$'+v}}}}
   });
-  document.getElementById('legend-contrib').innerHTML = `
-    <div class="legend-item"><div class="legend-dot" style="background:rgba(45,90,61,0.8)"></div>Peter</div>
-    <div class="legend-item"><div class="legend-dot" style="background:rgba(26,61,107,0.8)"></div>Tony</div>`;
+  document.getElementById('legend-investments').innerHTML = [
+    {l:'Sharesies',c:'#2d5a3d'},{l:'Hatch',c:'#8b4a1c'},{l:'KiwiSaver',c:'#1a3d6b'},{l:'ASB Fund',c:'#6b3d7a'}
+  ].map(x=>`<div class="legend-item"><div class="legend-dot" style="background:${x.c}"></div>${x.l}</div>`).join('');
+
+  // Personal category bars
+  renderPersonalCatBars(latestKey, data);
+  document.getElementById('personal-cat-pills').innerHTML = keys.map(k=>`<button class="month-pill${k===latestKey?' active':''}" onclick="selectPersonalCatMonth('${k}')">${monthLabel(k)}</button>`).join('');
+
+  // Work reimbursement tracker
+  renderWorkReimb(data, keys);
 }
 
-function renderCatBars(key, data) {
-  const cats = data[key].summary.categories;
-  const sorted = Object.entries(cats).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const max = sorted[0]?.[1] || 1;
-  const colors = ['#2d5a3d','#8b4a1c','#1a3d6b','#6b3d7a','#0f5a4a','#7a4f10','#a02828','#2d4a6b','#3d6b2d','#4a1c7a'];
-  document.getElementById('cat-month-label').textContent = monthLabel(key);
-  document.getElementById('cat-bars').innerHTML = sorted.map(([name,val],i)=>`
+function switchDashTab(tab) {
+  document.querySelectorAll('.dash-tab').forEach((b,i)=>b.classList.toggle('active',['house','personal'][i]===tab));
+  document.getElementById('dash-house').style.display = tab==='house'?'block':'none';
+  document.getElementById('dash-personal').style.display = tab==='personal'?'block':'none';
+  document.querySelectorAll('.dash-section').forEach(s=>s.classList.remove('active'));
+  document.getElementById(`dash-${tab}`).classList.add('active');
+}
+
+function renderHouseCatBars(key, data) {
+  const houseCatNames = getHouseCatsSync();
+  const cats = data[key].summary.categories || {};
+  const filtered = houseCatNames.map(n=>[n,cats[n]||0]).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const max = filtered[0]?.[1]||1;
+  const colors = ['#2d5a3d','#1a3d6b','#7a4f10','#0f5a4a','#6b3d7a','#a02828'];
+  document.getElementById('house-cat-month-label').textContent = monthLabel(key);
+  document.getElementById('house-cat-bars').innerHTML = filtered.map(([name,val],i)=>`
     <div class="bar-row">
       <div class="bar-name" title="${name}">${name}</div>
       <div class="bar-track"><div class="bar-fill" style="width:${(val/max*100).toFixed(1)}%;background:${colors[i%colors.length]}"></div></div>
@@ -1310,11 +1664,86 @@ function renderCatBars(key, data) {
     </div>`).join('');
 }
 
-async function selectCatMonth(key) {
-  document.querySelectorAll('.month-pill').forEach(p => p.classList.toggle('active', p.textContent === monthLabel(key)));
-  const data = await loadAllData();
-  renderCatBars(key, data);
+function renderPersonalCatBars(key, data) {
+  const personalCatNames = [...(_catsCache?.personal||DEFAULT_PERSONAL_CATS)];
+  const cats = data[key].summary.categories || {};
+  const skipCats = ['Take Home Pay','Brother Transfer'];
+  const filtered = personalCatNames.filter(n=>!skipCats.includes(n)).map(n=>[n,cats[n]||0]).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const max = filtered[0]?.[1]||1;
+  const colors = ['#8b4a1c','#6b3d7a','#1a3d6b','#a02828','#2d4a6b','#7a4f10','#0f5a4a'];
+  document.getElementById('personal-cat-month-label').textContent = monthLabel(key);
+  document.getElementById('personal-cat-bars').innerHTML = filtered.map(([name,val],i)=>`
+    <div class="bar-row">
+      <div class="bar-name" title="${name}">${name}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(val/max*100).toFixed(1)}%;background:${colors[i%colors.length]}"></div></div>
+      <div class="bar-val">$${val.toFixed(0)}</div>
+    </div>`).join('');
 }
+
+async function selectHouseCatMonth(key) {
+  document.querySelectorAll('#house-cat-pills .month-pill').forEach(p=>p.classList.toggle('active',p.textContent===monthLabel(key)));
+  const data = await loadAllData();
+  renderHouseCatBars(key, data);
+}
+
+async function selectPersonalCatMonth(key) {
+  document.querySelectorAll('#personal-cat-pills .month-pill').forEach(p=>p.classList.toggle('active',p.textContent===monthLabel(key)));
+  const data = await loadAllData();
+  renderPersonalCatBars(key, data);
+}
+
+function renderWorkReimb(data, keys) {
+  // Gather all work transactions across all months
+  const allWorkTxns = [];
+  keys.forEach(k => {
+    const d = data[k];
+    const workTxns = (d.transactions||[]).filter(t=>t.sheet==='Work');
+    workTxns.forEach(t => allWorkTxns.push({...t, monthKey:k, monthLabel:d.label}));
+  });
+
+  const card = document.getElementById('work-reimb-card');
+  if (!allWorkTxns.length) { card.style.display='none'; return; }
+  card.style.display='block';
+
+  // Load reimbursement status from localStorage (per-device is fine for this)
+  const reimbStatus = JSON.parse(localStorage.getItem('pakaraka_reimb')||'{}');
+
+  const totalUnreimbursed = allWorkTxns.filter(t=>!reimbStatus[t.date+'_'+t.description+'_'+t.monthKey]).reduce((s,t)=>s+Math.abs(t.amount),0);
+  document.getElementById('work-reimb-total').innerHTML = totalUnreimbursed > 0
+    ? `$${totalUnreimbursed.toFixed(2)} <span style="font-family:'DM Sans',sans-serif;font-size:.75rem;color:var(--text2);font-weight:400">outstanding</span>`
+    : `<span style="color:var(--accent);font-size:1rem">All reimbursed ✓</span>`;
+
+  const rows = allWorkTxns.slice().reverse().map(t => {
+    const id = t.date+'_'+t.description+'_'+t.monthKey;
+    const reimbursed = !!reimbStatus[id];
+    return `<div class="work-reimb-row" style="${reimbursed?'opacity:.5':''}">
+      <span style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--text3)">${t.date} ${t.monthLabel}</span>
+      <span style="font-weight:500">${t.description}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:.8rem;font-weight:500">$${Math.abs(t.amount).toFixed(2)}</span>
+      <span class="hide-m" style="font-size:.75rem;color:var(--text2)">${t.category}</span>
+      <span><button class="reimb-toggle ${reimbursed?'reimb-done':'reimb-pending'}" onclick="toggleReimb('${id}')">
+        ${reimbursed?'✓ Reimbursed':'Mark reimbursed'}
+      </button></span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('work-reimb-table').innerHTML = `
+    <div class="work-reimb-row" style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);background:var(--surface2);border-radius:6px">
+      <span>Date</span><span>Description</span><span>Amount</span><span class="hide-m">Category</span><span>Status</span>
+    </div>${rows}`;
+}
+
+async function toggleReimb(id) {
+  const status = JSON.parse(localStorage.getItem('pakaraka_reimb')||'{}');
+  status[id] = !status[id];
+  if (!status[id]) delete status[id];
+  localStorage.setItem('pakaraka_reimb', JSON.stringify(status));
+  const data = await loadAllData();
+  renderWorkReimb(data, sortedKeys(data));
+}
+
+// Keep old selectCatMonth as alias for compatibility
+async function selectCatMonth(key) { await selectHouseCatMonth(key); }
 
 // ═══════════════════════════
 // HISTORY
@@ -1337,7 +1766,7 @@ async function renderHistory() {
     return `<div class="month-entry" onclick="viewMonthDetail('${k}')">
       <div>
         <div class="month-entry-name">${d.label} ${d.savedBy ? `<span class="entry-tag ${d.savedBy.toLowerCase()==='peter'?'tag-peter':d.savedBy.toLowerCase()==='tony'?'tag-tony':'tag-other'}">${d.savedBy}</span>` : ''}</div>
-        <div class="month-entry-meta">House $${s.houseTotal.toFixed(0)} · Personal $${s.personalSpend.toFixed(0)} · Savings $${s.savings.toFixed(0)} · ${d.transactions.length} txns${savedAtStr ? ' · saved '+savedAtStr : ''}</div>
+        <div class="month-entry-meta">House $${s.houseTotal.toFixed(0)} · Personal $${s.personalSpend.toFixed(0)} · ${s.workTotal>0?`Work $${s.workTotal.toFixed(0)} · `:''}Savings $${s.savings.toFixed(0)} · ${d.transactions.length} txns${savedAtStr ? ' · saved '+savedAtStr : ''}</div>
       </div>
       <div class="month-entry-actions">
         <button class="btn btn-secondary" style="padding:.35rem .75rem;font-size:.65rem" onclick="event.stopPropagation();viewMonthDetail('${k}')">View →</button>
@@ -1452,22 +1881,23 @@ async function renderDetailTxnTable(key) {
       <span style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--text3)">${r.date||''}</span>
       <span style="font-size:.8rem">${r.description}</span>
       <span style="font-family:'DM Mono',monospace;font-size:.78rem;font-weight:500;color:${isIncome?'var(--accent)':'var(--text)'}">$${Math.abs(r.amount).toFixed(2)}</span>
-      <span class="hide-mobile"><select class="cat-select" onchange="updateDetailCat('${key}',${i},this.value)">${allCats.map(c=>`<option value="${c}"${r.category===c?' selected':''}>${c}</option>`).join('')}</select></span>
-      <span class="hide-mobile"><span class="badge badge-${r.sheet==='House'?'house':'personal'}">${r.sheet}</span></span>
+      <span class="hide-mobile"><select class="cat-select" onchange="updateDetailCat('${key}',${i},this.value)">${getAllCatsSync().map(c=>`<option value="${c}"${r.category===c?' selected':''}>${c}</option>`).join('')}</select></span>
+      <span class="hide-mobile"><span class="badge badge-${r.sheet==='House'?'house':r.sheet==='Work'?'work':'personal'}">${r.sheet}</span></span>
     </div>`;
   });
   document.getElementById('detail-txn-table').innerHTML = thtml;
 }
 
 async function updateDetailCat(key, idx, newCat) {
-  const houseSheetCats = ['Groceries','Electricity','Water','Wifi','Council Rates','Insurance'];
+  const houseSheetCats = getHouseCatsSync();
+  const workSheetCats = getWorkCatsSync();
   const data = await loadAllData();
   if (!data[key]) return;
   const txn = data[key].transactions[idx];
   const oldCat = txn.category;
   if (oldCat !== newCat) saveCorrectionFeedback(txn.description, oldCat, newCat);
   txn.category = newCat;
-  txn.sheet = houseSheetCats.includes(newCat) ? 'House' : 'Personal';
+  txn.sheet = houseSheetCats.includes(newCat) ? 'House' : workSheetCats.includes(newCat) ? 'Work' : 'Personal';
   saveAllData(data);
   viewMonthDetailFromData(key, data);
 }
@@ -1486,7 +1916,7 @@ async function viewMonthDetailFromData(key, data) {
   const personalSpend = txns.filter(r=>r.sheet==='Personal'&&!skipCats.includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const savings = pay - personalSpend - investTotal;
   const cats = {};
-  allCats.forEach(c => cats[c] = txns.filter(r=>r.category===c).reduce((s,r)=>s+Math.abs(r.amount),0));
+  getAllCatsSync().forEach(c => cats[c] = txns.filter(r=>r.category===c).reduce((s,r)=>s+Math.abs(r.amount),0));
 
   data[key].summary = { ...d.summary, houseTotal, tonyContrib, peterContrib:houseTotal-tonyContrib, pay, personalSpend, investTotal, savings, categories:cats };
   await saveAllData(data, key);
@@ -1580,14 +2010,206 @@ function forgetUser() {
 }
 
 // ═══════════════════════════
+// SPLIT TRANSACTION
+// ═══════════════════════════
+let _splitIdx = null;
+
+function openSplitModal(idx) {
+  _splitIdx = idx;
+  const r = categorisedResults[idx];
+  const total = Math.abs(r.amount);
+  const cats = getAllCatsSync();
+  const optionsHtml = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+
+  document.getElementById('split-modal-desc').textContent =
+    `${r.description} — $${total.toFixed(2)} on ${r.date}`;
+
+  // Default split: current category for A, suggest complementary for B
+  const defaultCatB = r.category === 'Wifi' ? '2degrees Mobile' :
+                      r.category === '2degrees Mobile' ? 'Wifi' : cats[0];
+
+  document.getElementById('split-cat-a').innerHTML = optionsHtml;
+  document.getElementById('split-cat-b').innerHTML = optionsHtml;
+  document.getElementById('split-cat-a').value = r.category;
+  document.getElementById('split-cat-b').value = defaultCatB;
+  document.getElementById('split-amount-a').value = (total / 2).toFixed(2);
+  document.getElementById('split-amount-b').value = (total / 2).toFixed(2);
+  document.getElementById('split-error').style.display = 'none';
+
+  const modal = document.getElementById('split-modal');
+  modal.style.display = 'flex';
+}
+
+function closeSplitModal() {
+  document.getElementById('split-modal').style.display = 'none';
+  _splitIdx = null;
+}
+
+function updateSplitB() {
+  const r = categorisedResults[_splitIdx];
+  const total = Math.abs(r.amount);
+  const a = parseFloat(document.getElementById('split-amount-a').value) || 0;
+  document.getElementById('split-amount-b').value = Math.max(0, total - a).toFixed(2);
+}
+
+function updateSplitA() {
+  const r = categorisedResults[_splitIdx];
+  const total = Math.abs(r.amount);
+  const b = parseFloat(document.getElementById('split-amount-b').value) || 0;
+  document.getElementById('split-amount-a').value = Math.max(0, total - b).toFixed(2);
+}
+
+function confirmSplit() {
+  const r = categorisedResults[_splitIdx];
+  const total = Math.abs(r.amount);
+  const amtA = parseFloat(document.getElementById('split-amount-a').value);
+  const amtB = parseFloat(document.getElementById('split-amount-b').value);
+  const catA = document.getElementById('split-cat-a').value;
+  const catB = document.getElementById('split-cat-b').value;
+  const errEl = document.getElementById('split-error');
+
+  if (isNaN(amtA) || isNaN(amtB) || amtA <= 0 || amtB <= 0) {
+    errEl.textContent = 'Both amounts must be greater than zero.';
+    errEl.style.display = 'block'; return;
+  }
+  if (Math.abs(amtA + amtB - total) > 0.02) {
+    errEl.textContent = `Amounts must add up to $${total.toFixed(2)} (currently $${(amtA+amtB).toFixed(2)})`;
+    errEl.style.display = 'block'; return;
+  }
+
+  const houseCats = getHouseCatsSync();
+  const workCats = getWorkCatsSync();
+  const getSheet = (cat) => houseCats.includes(cat) ? 'House' : workCats.includes(cat) ? 'Work' : 'Personal';
+  const splitA = { ...r, amount: amtA, category: catA, sheet: getSheet(catA), _splitFrom: _splitIdx };
+  const splitB = { ...r, amount: amtB, category: catB, sheet: getSheet(catB), _splitFrom: _splitIdx };
+  categorisedResults.splice(_splitIdx, 1, splitA, splitB);
+
+  closeSplitModal();
+  buildStep4();
+  showCorrectionToast(`Split into $${amtA.toFixed(2)} ${catA} + $${amtB.toFixed(2)} ${catB}`);
+}
+
+function unsplitTransaction(originalIdx) {
+  // Find all parts of this split and merge back
+  const parts = categorisedResults.filter(r => r._splitFrom === originalIdx);
+  if (!parts.length) return;
+  const original = { ...parts[0] };
+  original.amount = parts.reduce((s,r) => s + r.amount, 0);
+  delete original._splitFrom;
+  // Remove split parts and restore original
+  const firstPartIdx = categorisedResults.findIndex(r => r._splitFrom === originalIdx);
+  categorisedResults.splice(firstPartIdx, parts.length, original);
+  buildStep4();
+  showCorrectionToast('Transaction unsplit');
+}
+
+// ═══════════════════════════
+// SETTINGS — CATEGORIES
+// ═══════════════════════════
+async function renderSettings() {
+  const cats = await loadCategories();
+  renderCatPills('house-cats-list', cats.house, 'House');
+  renderCatPills('personal-cats-list', cats.personal, 'Personal');
+  renderCatPills('work-cats-list', cats.work || DEFAULT_WORK_CATS, 'Work');
+  await renderCorrectionsLog();
+}
+
+function renderCatPills(containerId, catList, sheet) {
+  const el = document.getElementById(containerId);
+  const colors = {House:'var(--blue-l)',Personal:'var(--purple-l)',Work:'var(--amber-l)'};
+  const borderColors = {House:'var(--blue)',Personal:'var(--purple)',Work:'var(--amber)'};
+  el.innerHTML = catList.map(cat => `
+    <div style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 12px;
+      background:${colors[sheet]||'var(--surface2)'};border:1px solid ${borderColors[sheet]||'var(--border)'};
+      border-radius:20px;font-size:.82rem;">
+      <span>${cat}</span>
+      <button onclick="removeCategory('${cat}','${sheet}')" title="Remove"
+        style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:.9rem;line-height:1;padding:0;display:flex;align-items:center;"
+        onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">×</button>
+    </div>`).join('');
+}
+
+async function addCategory() {
+  const name = document.getElementById('new-cat-name').value.trim();
+  const sheet = document.getElementById('new-cat-sheet').value;
+  if (!name) return;
+  const cats = await loadCategories();
+  if (!cats.work) cats.work = DEFAULT_WORK_CATS;
+  const allExisting = [...cats.house, ...cats.personal, ...cats.work];
+  if (allExisting.some(c => c.toLowerCase() === name.toLowerCase())) {
+    alert('That category already exists.');
+    return;
+  }
+  if (sheet === 'House') cats.house.push(name);
+  else if (sheet === 'Work') cats.work.push(name);
+  else cats.personal.push(name);
+  await saveCategories(cats);
+  document.getElementById('new-cat-name').value = '';
+  showCorrectionToast(`Added "${name}" to ${sheet} categories`);
+  renderSettings();
+}
+
+async function removeCategory(cat, sheet) {
+  if (!confirm(`Remove "${cat}" category? Existing transactions with this category won't be affected.`)) return;
+  const cats = await loadCategories();
+  if (!cats.work) cats.work = DEFAULT_WORK_CATS;
+  if (sheet === 'House') cats.house = cats.house.filter(c => c !== cat);
+  else if (sheet === 'Work') cats.work = cats.work.filter(c => c !== cat);
+  else cats.personal = cats.personal.filter(c => c !== cat);
+  await saveCategories(cats);
+  showCorrectionToast(`Removed "${cat}"`);
+  renderSettings();
+}
+
+async function renderCorrectionsLog() {
+  const corrections = await loadCorrections();
+  const el = document.getElementById('corrections-list');
+  if (!corrections.length) {
+    el.innerHTML = `<div class="empty" style="padding:1.5rem"><div class="empty-icon" style="font-size:1.5rem">🧠</div><p>No corrections yet — change a category in History to teach Claude.</p></div>`;
+    return;
+  }
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.85rem">
+    <thead><tr style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">
+      <td style="padding:7px 10px">Merchant</td>
+      <td style="padding:7px 10px">Always categorise as</td>
+      <td style="padding:7px 10px">Times corrected</td>
+      <td style="padding:7px 10px"></td>
+    </tr></thead>
+    <tbody>${corrections.map((c,i) => `<tr style="border-top:1px solid var(--border)">
+      <td style="padding:8px 10px;font-weight:500">${c.description}</td>
+      <td style="padding:8px 10px"><span class="badge badge-green">${c.toCat}</span></td>
+      <td style="padding:8px 10px;font-family:'DM Mono',monospace;font-size:.72rem;color:var(--text3)">${c.count||1}×</td>
+      <td style="padding:8px 10px"><button class="btn btn-danger" style="padding:.25rem .6rem;font-size:.62rem" onclick="removeCorrection(${i})">Remove</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+async function removeCorrection(idx) {
+  const corrections = await loadCorrections();
+  corrections.splice(idx, 1);
+  await saveCorrections(corrections);
+  renderCorrectionsLog();
+}
+
+async function clearCorrections() {
+  if (!confirm('Clear all learnt corrections? Claude will start fresh on future categorisations.')) return;
+  await saveCorrections([]);
+  renderCorrectionsLog();
+}
+
+// ═══════════════════════════
 // EXPOSE TO WINDOW (module scope fix)
 // ═══════════════════════════
 Object.assign(window, {
   showPage, switchInner, loadSample, goToPrompt, copyPrompt, loadResults,
   saveCurrentMonth, togglePaste, handleFiles, removeFile,
-  selectCatMonth, deleteMonth, closeDetail, viewMonthDetail, updateDetailCat,
+  selectCatMonth, selectHouseCatMonth, selectPersonalCatMonth,
+  switchDashTab, toggleReimb,
+  deleteMonth, closeDetail, viewMonthDetail, updateDetailCat,
   selectName, confirmOtherName, forgetUser,
-  renderDashboard, renderHistory
+  renderDashboard, renderHistory,
+  addCategory, removeCategory, removeCorrection, clearCorrections,
+  openSplitModal, closeSplitModal, updateSplitA, updateSplitB, confirmSplit, unsplitTransaction
 });
 
 // ═══════════════════════════
@@ -1599,6 +2221,7 @@ Object.assign(window, {
     document.getElementById('welcome-overlay').classList.add('hidden');
     updateUserPill(savedUser);
   }
+  await loadCategories(); // preload so dropdowns work immediately
   await renderDashboard();
 })();
 </script>
