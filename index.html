@@ -291,6 +291,54 @@ select:focus{outline:none;border-color:var(--accent)}
 }
 .file-chip button:hover { opacity: 1; }
 
+/* IOU TABLE */
+.iou-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 90px 90px 110px;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  font-size: .82rem;
+}
+.iou-row:last-child { border-bottom: none; }
+.iou-header {
+  font-family: 'DM Mono', monospace;
+  font-size: .62rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text3);
+  background: var(--surface2);
+  border-radius: 6px;
+}
+.iou-grocery-row {
+  display: grid;
+  grid-template-columns: 100px 90px 90px 1fr 110px;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  font-size: .82rem;
+}
+.iou-grocery-row:last-child { border-bottom: none; }
+.paid-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 20px;
+  font-family: 'DM Mono', monospace; font-size: .65rem;
+  text-transform: uppercase; letter-spacing: .04em;
+  cursor: pointer; border: 1px solid; transition: all .15s;
+}
+.paid-pending { border-color: var(--amber); color: var(--amber); background: transparent; }
+.paid-pending:hover { background: var(--amber-l); }
+.paid-done { border-color: var(--accent); color: var(--accent); background: var(--accent-l); }
+.iou-banner-owed { background: var(--amber-l); border: 1px solid var(--amber); }
+.iou-banner-clear { background: var(--accent-l); border: 1px solid var(--accent); }
+
+@media(max-width:600px) {
+  .iou-row, .iou-grocery-row { grid-template-columns: 80px 1fr 80px; }
+  .iou-row .hide-m, .iou-grocery-row .hide-m { display: none; }
+}
+
 /* DASH TABS */
 .dash-tabs {
   display: flex;
@@ -506,6 +554,7 @@ select:focus{outline:none;border-color:var(--accent)}
     <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
     <button class="nav-tab" onclick="showPage('categorise')">Categorise</button>
     <button class="nav-tab" onclick="showPage('history')">History</button>
+    <button class="nav-tab" onclick="showPage('iou')">IOU</button>
     <button class="nav-tab" onclick="showPage('settings')">Settings</button>
   </div>
   <div id="user-pill" onclick="forgetUser()" title="Click to switch user">
@@ -874,8 +923,64 @@ select:focus{outline:none;border-color:var(--accent)}
 </div>
 
 <!-- ═══════════════════════════════════════════════
-     SETTINGS PAGE
+     IOU PAGE
 ═══════════════════════════════════════════════ -->
+<div id="page-iou" class="page">
+  <div class="page-header">
+    <h1>IOU</h1>
+    <p>Track what Peter and Tony owe each other</p>
+  </div>
+
+  <div id="iou-empty" class="card" style="display:none">
+    <div class="empty"><div class="empty-icon">🤝</div><p>No data yet — both Peter and Tony need to save at least one month of transactions.</p></div>
+  </div>
+
+  <div id="iou-content" style="display:none">
+    <!-- Running balance banner -->
+    <div id="iou-banner" style="border-radius:12px;padding:1.5rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem"></div>
+
+    <!-- Month selector -->
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap">
+      <span style="font-family:'DM Mono',monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">Viewing</span>
+      <select id="iou-month-select" onchange="renderIOUMonth()" style="font-size:.875rem"></select>
+      <button class="btn btn-secondary" style="padding:.35rem .85rem;font-size:.65rem" onclick="renderIOUMonth()">↺ Refresh</button>
+    </div>
+
+    <!-- Utilities section -->
+    <div class="card">
+      <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;margin-bottom:.25rem">Utilities</div>
+      <div style="font-size:.8rem;color:var(--text2);margin-bottom:1rem">Peter pays first — Tony reimburses his half</div>
+      <div id="iou-utilities"></div>
+    </div>
+
+    <!-- Groceries section -->
+    <div class="card">
+      <div style="display:flex;align-items:baseline;gap:.75rem;margin-bottom:.25rem;flex-wrap:wrap;justify-content:space-between">
+        <div>
+          <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600">Groceries</div>
+          <div style="font-size:.8rem;color:var(--text2);margin-top:2px">Weekly spend — split 50/50</div>
+        </div>
+        <div id="iou-groceries-balance" style="font-family:'DM Mono',monospace;font-size:.85rem;font-weight:500"></div>
+      </div>
+      <div id="iou-groceries"></div>
+    </div>
+
+    <!-- Car insurance section -->
+    <div class="card">
+      <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;margin-bottom:.25rem">Tony's Car Insurance</div>
+      <div style="font-size:.8rem;color:var(--text2);margin-bottom:1rem">Charged to Peter's credit card — Tony reimburses in full</div>
+      <div id="iou-insurance"></div>
+    </div>
+
+    <!-- All months summary -->
+    <div class="card">
+      <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;margin-bottom:1rem">All time — outstanding balance</div>
+      <div id="iou-summary-table"></div>
+    </div>
+  </div>
+</div>
+
+
 <div id="page-settings" class="page">
   <div class="page-header">
     <h1>Settings</h1>
@@ -993,21 +1098,33 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ═══════════════════════════
-// DATA LAYER — Firestore
+// DATA LAYER — Firestore (user-namespaced)
 // ═══════════════════════════
 
-// In-memory cache so UI stays fast after first load
-let _cache = null;
+// In-memory cache per user
+let _cache = {}; // { peter: {...months}, tony: {...months} }
 let _correctionsCache = null;
 
-async function loadAllData() {
-  if (_cache) return _cache;
+function getUserId() {
+  return (getCurrentUser() || 'peter').toLowerCase();
+}
+
+function userMonthsRef(userId) {
+  return collection(db, 'users', userId || getUserId(), 'months');
+}
+function userMonthDocRef(key, userId) {
+  return doc(db, 'users', userId || getUserId(), 'months', key);
+}
+
+async function loadAllData(userId) {
+  const uid = userId || getUserId();
+  if (_cache[uid]) return _cache[uid];
   showSyncIndicator('Loading…');
   try {
-    const snap = await getDocs(collection(db, 'months'));
+    const snap = await getDocs(userMonthsRef(uid));
     const result = {};
     snap.forEach(d => { result[d.id] = d.data(); });
-    _cache = result;
+    _cache[uid] = result;
     hideSyncIndicator();
     return result;
   } catch(e) {
@@ -1017,12 +1134,13 @@ async function loadAllData() {
   }
 }
 
-async function saveAllData(dataObj, key) {
-  // key = the specific month key being saved
-  _cache = dataObj;
+async function saveAllData(dataObj, key, userId) {
+  const uid = userId || getUserId();
+  if (!_cache[uid]) _cache[uid] = {};
+  _cache[uid][key] = dataObj[key];
   showSyncIndicator('Saving…');
   try {
-    await setDoc(doc(db, 'months', key), dataObj[key]);
+    await setDoc(userMonthDocRef(key, uid), dataObj[key]);
     hideSyncIndicator('✓ Synced');
   } catch(e) {
     hideSyncIndicator('⚠ Sync failed');
@@ -1030,17 +1148,27 @@ async function saveAllData(dataObj, key) {
   }
 }
 
-async function deleteMonthFromDB(key) {
-  if (_cache) delete _cache[key];
+async function deleteMonthFromDB(key, userId) {
+  const uid = userId || getUserId();
+  if (_cache[uid]) delete _cache[uid][key];
   try {
-    await deleteDoc(doc(db, 'months', key));
+    await deleteDoc(userMonthDocRef(key, uid));
   } catch(e) { console.error('Firestore delete error:', e); }
+}
+
+// Load both users' data for IOU tab
+async function loadAllUsersData() {
+  const [peterData, tonyData] = await Promise.all([
+    loadAllData('peter'),
+    loadAllData('tony')
+  ]);
+  return { peter: peterData, tony: tonyData };
 }
 
 async function loadCorrections() {
   if (_correctionsCache) return _correctionsCache;
   try {
-    const snap = await getDoc(doc(db, 'settings', 'corrections'));
+    const snap = await getDoc(doc(db, 'shared', 'corrections'));
     _correctionsCache = snap.exists() ? (snap.data().list || []) : [];
     return _correctionsCache;
   } catch(e) { return []; }
@@ -1049,14 +1177,14 @@ async function loadCorrections() {
 async function saveCorrections(list) {
   _correctionsCache = list;
   try {
-    await setDoc(doc(db, 'settings', 'corrections'), { list });
+    await setDoc(doc(db, 'shared', 'corrections'), { list });
   } catch(e) { console.error('Corrections save error:', e); }
 }
 
 // Category management
 const DEFAULT_HOUSE_CATS = ['Groceries','Electricity','Water','Wifi','Council Rates','Insurance'];
 const DEFAULT_PERSONAL_CATS = ['Eating Out','Jetts','Sharesies','Hatch','KiwiSaver','ASB Investment',
-  'Take Home Pay','Brother Transfer','Google One','Haircut','Health',
+  'Take Home Pay','Brother Transfer','Work Reimbursement','Google One','Haircut','Health',
   'Transport','Travel','Shopping','2degrees Mobile','Royal NZ Fo','Other'];
 const DEFAULT_WORK_CATS = ['Work Expenses','Work Travel','Work Meals','Work Equipment'];
 
@@ -1065,7 +1193,7 @@ let _catsCache = null;
 async function loadCategories() {
   if (_catsCache) return _catsCache;
   try {
-    const snap = await getDoc(doc(db, 'settings', 'categories'));
+    const snap = await getDoc(doc(db, 'shared', 'categories'));
     if (snap.exists()) {
       _catsCache = snap.data();
       if (!_catsCache.work) _catsCache.work = DEFAULT_WORK_CATS; // migrate old data
@@ -1081,7 +1209,7 @@ async function loadCategories() {
 async function saveCategories(cats) {
   _catsCache = cats;
   try {
-    await setDoc(doc(db, 'settings', 'categories'), cats);
+    await setDoc(doc(db, 'shared', 'categories'), cats);
   } catch(e) { console.error('Categories save error:', e); }
 }
 
@@ -1131,11 +1259,12 @@ async function showPage(p) {
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
-  const tabs = ['dashboard','categorise','history','settings'];
+  const tabs = ['dashboard','categorise','history','iou','settings'];
   document.querySelectorAll('.nav-tab')[tabs.indexOf(p)].classList.add('active');
   if (p === 'dashboard') await renderDashboard();
   if (p === 'history') await renderHistory();
   if (p === 'settings') await renderSettings();
+  if (p === 'iou') await renderIOU();
 }
 
 function switchInner(s) {
@@ -1315,7 +1444,7 @@ Categories:
 HOUSE sheet: ${houseCatsList}
 PERSONAL sheet: ${personalCatsList}
 WORK sheet (reimbursable work expenses): ${cats.work ? cats.work.join(', ') : DEFAULT_WORK_CATS.join(', ')}
-PERSONAL sheet special: Take Home Pay (Cass Medical income — positive amount), Brother Transfer (D/C FROM MR T LIN — money from Tony)
+PERSONAL sheet special: Take Home Pay (Cass Medical income — positive amount), Brother Transfer (D/C FROM MR T LIN — money from Tony), Work Reimbursement (employer reimbursing a work expense — positive credit from employer/work)
 SKIP: credit card payments (PAYMENT - THANK YOU), ASB direct debit for credit card (D/D LIN C)
 ${correctionsBlock}
 Transactions:
@@ -1393,7 +1522,7 @@ function buildStep4() {
   const houseTotal = categorisedResults.filter(r=>r.sheet==='House').reduce((s,r)=>s+Math.abs(r.amount),0);
   const workTotal = categorisedResults.filter(r=>r.sheet==='Work').reduce((s,r)=>s+Math.abs(r.amount),0);
   const investTotal = sumCat('Sharesies')+sumCat('Hatch')+sumCat('KiwiSaver')+sumCat('ASB Investment');
-  const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!['Take Home Pay','Brother Transfer','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
+  const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!['Take Home Pay','Brother Transfer','Work Reimbursement','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const houseShare = houseTotal / 2;
   const savings = pay - personalSpend - houseShare;
   const netPosition = savings + investTotal;
@@ -1521,7 +1650,7 @@ async function _doSave() {
     travel=sumCat('Travel'), water=sumCat('Water'),
     council=sumCat('Council Rates'), insurance=sumCat('Insurance');
   const investTotal = sharesies+hatch+ks+asbInv;
-  const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!['Take Home Pay','Brother Transfer','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
+  const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!['Take Home Pay','Brother Transfer','Work Reimbursement','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const workTotal = categorisedResults.filter(r=>r.sheet==='Work').reduce((s,r)=>s+Math.abs(r.amount),0);
   const houseShareSave = houseTotal / 2;
   const savings = pay - personalSpend - houseShareSave;
@@ -1769,7 +1898,7 @@ function renderHouseCatBars(key, data) {
 function renderPersonalCatBars(key, data) {
   const personalCatNames = [...(_catsCache?.personal||DEFAULT_PERSONAL_CATS)];
   const cats = data[key].summary.categories || {};
-  const skipCats = ['Take Home Pay','Brother Transfer'];
+  const skipCats = ['Take Home Pay','Brother Transfer','Work Reimbursement'];
   const filtered = personalCatNames.filter(n=>!skipCats.includes(n)).map(n=>[n,cats[n]||0]).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
   const max = filtered[0]?.[1]||1;
   const colors = ['#8b4a1c','#6b3d7a','#1a3d6b','#a02828','#2d4a6b','#7a4f10','#0f5a4a'];
@@ -1795,44 +1924,68 @@ async function selectPersonalCatMonth(key) {
 }
 
 function renderWorkReimb(data, keys) {
-  // Gather all work transactions across all months
   const allWorkTxns = [];
+  const allReimbTxns = [];
   keys.forEach(k => {
     const d = data[k];
-    const workTxns = (d.transactions||[]).filter(t=>t.sheet==='Work');
-    workTxns.forEach(t => allWorkTxns.push({...t, monthKey:k, monthLabel:d.label}));
+    (d.transactions||[]).forEach(t => {
+      if (t.sheet === 'Work') allWorkTxns.push({...t, monthKey:k, monthLabel:d.label});
+      if (t.category === 'Work Reimbursement') allReimbTxns.push({...t, monthKey:k, monthLabel:d.label});
+    });
   });
 
   const card = document.getElementById('work-reimb-card');
-  if (!allWorkTxns.length) { card.style.display='none'; return; }
-  card.style.display='block';
+  if (!allWorkTxns.length && !allReimbTxns.length) { card.style.display='none'; return; }
+  card.style.display = 'block';
 
-  // Load reimbursement status from localStorage (per-device is fine for this)
   const reimbStatus = JSON.parse(localStorage.getItem('pakaraka_reimb')||'{}');
+  const totalWork = allWorkTxns.reduce((s,t) => s+Math.abs(t.amount), 0);
+  const totalAutoReimb = allReimbTxns.reduce((s,t) => s+Math.abs(t.amount), 0);
+  const totalManualReimb = allWorkTxns.filter(t => reimbStatus[t.date+'_'+t.description+'_'+t.monthKey]).reduce((s,t) => s+Math.abs(t.amount), 0);
+  const totalOutstanding = Math.max(0, totalWork - totalAutoReimb - totalManualReimb);
 
-  const totalUnreimbursed = allWorkTxns.filter(t=>!reimbStatus[t.date+'_'+t.description+'_'+t.monthKey]).reduce((s,t)=>s+Math.abs(t.amount),0);
-  document.getElementById('work-reimb-total').innerHTML = totalUnreimbursed > 0
-    ? `$${totalUnreimbursed.toFixed(2)} <span style="font-family:'DM Sans',sans-serif;font-size:.75rem;color:var(--text2);font-weight:400">outstanding</span>`
+  document.getElementById('work-reimb-total').innerHTML = totalOutstanding > 0
+    ? `$${totalOutstanding.toFixed(2)} <span style="font-family:'DM Sans',sans-serif;font-size:.75rem;color:var(--text2);font-weight:400">outstanding</span>`
     : `<span style="color:var(--accent);font-size:1rem">All reimbursed ✓</span>`;
 
-  const rows = allWorkTxns.slice().reverse().map(t => {
+  const expenseRows = allWorkTxns.slice().reverse().map(t => {
     const id = t.date+'_'+t.description+'_'+t.monthKey;
     const reimbursed = !!reimbStatus[id];
     return `<div class="work-reimb-row" style="${reimbursed?'opacity:.5':''}">
       <span style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--text3)">${t.date} ${t.monthLabel}</span>
       <span style="font-weight:500">${t.description}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:.8rem;font-weight:500">$${Math.abs(t.amount).toFixed(2)}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:.8rem;font-weight:500;color:var(--red)">-$${Math.abs(t.amount).toFixed(2)}</span>
       <span class="hide-m" style="font-size:.75rem;color:var(--text2)">${t.category}</span>
       <span><button class="reimb-toggle ${reimbursed?'reimb-done':'reimb-pending'}" onclick="toggleReimb('${id}')">
-        ${reimbursed?'✓ Reimbursed':'Mark reimbursed'}
+        ${reimbursed ? '✓ Reimbursed' : 'Mark reimbursed'}
       </button></span>
     </div>`;
   }).join('');
 
+  const reimbRows = allReimbTxns.length ? `
+    <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);padding:10px 10px 4px;margin-top:4px">
+      Reimbursements received
+    </div>
+    ${allReimbTxns.slice().reverse().map(t => `
+    <div class="work-reimb-row" style="background:var(--accent-l)">
+      <span style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--text3)">${t.date} ${t.monthLabel}</span>
+      <span style="font-weight:500;color:var(--accent)">${t.description}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:.8rem;font-weight:500;color:var(--accent)">+$${Math.abs(t.amount).toFixed(2)}</span>
+      <span class="hide-m" style="font-size:.75rem;color:var(--accent)">Work Reimbursement</span>
+      <span><span class="reimb-toggle reimb-done">✓ Received</span></span>
+    </div>`).join('')}` : '';
+
   document.getElementById('work-reimb-table').innerHTML = `
     <div class="work-reimb-row" style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);background:var(--surface2);border-radius:6px">
       <span>Date</span><span>Description</span><span>Amount</span><span class="hide-m">Category</span><span>Status</span>
-    </div>${rows}`;
+    </div>
+    ${expenseRows}
+    ${reimbRows}
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 10px 2px;font-size:.8rem;border-top:1px solid var(--border);margin-top:4px">
+      <span style="color:var(--text2)">Total expenses: <strong style="color:var(--text)">$${totalWork.toFixed(2)}</strong></span>
+      <span style="color:var(--text2)">Reimbursed: <strong style="color:var(--accent)">$${(totalAutoReimb+totalManualReimb).toFixed(2)}</strong></span>
+      <span style="color:var(--text2)">Outstanding: <strong style="color:${totalOutstanding>0?'var(--amber)':'var(--accent)'}">$${totalOutstanding.toFixed(2)}</strong></span>
+    </div>`;
 }
 
 async function toggleReimb(id) {
@@ -2011,7 +2164,7 @@ async function viewMonthDetailFromData(key, data) {
   const d = data[key];
   if (!d) return;
   const investCats = ['Sharesies','Hatch','KiwiSaver','ASB Investment'];
-  const skipCats = ['Take Home Pay','Brother Transfer',...investCats];
+  const skipCats = ['Take Home Pay','Brother Transfer','Work Reimbursement',...investCats];
   const txns = d.transactions;
 
   const houseTotal = txns.filter(r=>r.sheet==='House').reduce((s,r)=>s+Math.abs(r.amount),0);
@@ -2303,6 +2456,276 @@ async function clearCorrections() {
 }
 
 // ═══════════════════════════
+// IOU TAB
+// ═══════════════════════════
+const IOU_STORAGE_KEY = 'pakaraka_iou_payments';
+
+function loadIOUPayments() {
+  try { return JSON.parse(localStorage.getItem(IOU_STORAGE_KEY)) || {}; } catch { return {}; }
+}
+function saveIOUPayments(p) { localStorage.setItem(IOU_STORAGE_KEY, JSON.stringify(p)); }
+
+// IOU payment key: category_monthKey e.g. "Electricity_2026-03"
+function iouKey(cat, monthKey) { return `${cat}__${monthKey}`; }
+
+async function renderIOU() {
+  const { peter, tony } = await loadAllUsersData();
+  const peterKeys = sortedKeys(peter);
+  const tonyKeys = sortedKeys(tony);
+  const allKeys = [...new Set([...peterKeys, ...tonyKeys])].sort();
+
+  if (!allKeys.length) {
+    document.getElementById('iou-empty').style.display = 'block';
+    document.getElementById('iou-content').style.display = 'none';
+    return;
+  }
+  document.getElementById('iou-empty').style.display = 'none';
+  document.getElementById('iou-content').style.display = 'block';
+
+  // Populate month selector
+  const sel = document.getElementById('iou-month-select');
+  sel.innerHTML = allKeys.slice().reverse().map(k =>
+    `<option value="${k}">${monthLabel(k)}</option>`
+  ).join('');
+
+  await renderIOUMonth();
+  renderIOUSummary(peter, tony, allKeys);
+}
+
+async function renderIOUMonth() {
+  const { peter, tony } = await loadAllUsersData();
+  const key = document.getElementById('iou-month-select')?.value;
+  if (!key) return;
+
+  const pData = peter[key];
+  const tData = tony[key];
+  const payments = loadIOUPayments();
+
+  // Helper: sum a category from a month's transactions
+  const sumCatFrom = (monthData, cat) => {
+    if (!monthData?.transactions) return 0;
+    return monthData.transactions.filter(t => t.category === cat).reduce((s,t) => s+Math.abs(t.amount), 0);
+  };
+
+  // ── UTILITIES ──
+  // Peter pays electricity, wifi, water — Tony owes half
+  const utilCats = ['Electricity','Wifi','Water'];
+  let utilOwed = 0;
+  const utilRows = utilCats.map(cat => {
+    const peterPaid = sumCatFrom(pData, cat);
+    const tonyPaid = sumCatFrom(tData, cat);
+    const total = peterPaid + tonyPaid;
+    if (total === 0) return null;
+
+    const k = iouKey(cat, key);
+    const isPaid = !!payments[k];
+    const tonyOwes = peterPaid / 2; // Tony owes half of what Peter paid
+    const tonyAlreadyPaid = tonyPaid; // Tony's own direct payments
+    const outstanding = Math.max(0, tonyOwes - tonyAlreadyPaid);
+    if (!isPaid) utilOwed += outstanding;
+
+    const statusHtml = outstanding <= 0 || isPaid
+      ? `<span class="paid-btn paid-done">✓ Settled</span>`
+      : `<button class="paid-btn paid-pending" onclick="markIOUPaid('${k}','utilities')">Mark paid</button>`;
+
+    return `<div class="iou-row">
+      <span style="font-weight:500">${cat}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text3)">${monthLabel(key)}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:.8rem">$${peterPaid.toFixed(2)}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:.8rem;color:${outstanding>0&&!isPaid?'var(--amber)':'var(--accent)'}">$${outstanding.toFixed(2)}</span>
+      <span>${statusHtml}</span>
+    </div>`;
+  }).filter(Boolean);
+
+  document.getElementById('iou-utilities').innerHTML = utilRows.length
+    ? `<div class="iou-row iou-header"><span>Category</span><span>Month ref</span><span>Peter paid</span><span>Tony owes</span><span>Status</span></div>${utilRows.join('')}`
+    : `<p style="font-size:.875rem;color:var(--text3);padding:.5rem 0">No utility expenses found for ${monthLabel(key)}.</p>`;
+
+  // ── GROCERIES ──
+  // Both pay groceries — show weekly breakdown and who owes who
+  const pGroceries = (pData?.transactions||[]).filter(t => t.category === 'Groceries');
+  const tGroceries = (tData?.transactions||[]).filter(t => t.category === 'Groceries');
+  const pGrocTotal = pGroceries.reduce((s,t) => s+Math.abs(t.amount), 0);
+  const tGrocTotal = tGroceries.reduce((s,t) => s+Math.abs(t.amount), 0);
+  const grocTotal = pGrocTotal + tGrocTotal;
+  const ideal = grocTotal / 2;
+  const grocOwed = pGrocTotal - ideal; // positive = tony owes peter, negative = peter owes tony
+
+  const grocKey = iouKey('Groceries', key);
+  const grocPaid = !!payments[grocKey];
+
+  document.getElementById('iou-groceries-balance').innerHTML = grocTotal > 0
+    ? grocOwed > 0
+      ? `<span style="color:var(--amber)">Tony owes Peter $${grocOwed.toFixed(2)}</span>`
+      : grocOwed < 0
+        ? `<span style="color:var(--blue)">Peter owes Tony $${Math.abs(grocOwed).toFixed(2)}</span>`
+        : `<span style="color:var(--accent)">Even ✓</span>`
+    : '';
+
+  if (pGroceries.length || tGroceries.length) {
+    // Group by week
+    const allGroc = [
+      ...pGroceries.map(t => ({...t, person:'Peter'})),
+      ...tGroceries.map(t => ({...t, person:'Tony'}))
+    ].sort((a,b) => (a.date||'').localeCompare(b.date||''));
+
+    const rows = allGroc.map(t => `
+      <div class="iou-grocery-row">
+        <span style="font-family:'DM Mono',monospace;font-size:.72rem;color:var(--text3)">${t.date}</span>
+        <span class="badge ${t.person==='Peter'?'badge-green':'badge-blue'}" style="font-size:.65rem">${t.person}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:.8rem;font-weight:500">$${Math.abs(t.amount).toFixed(2)}</span>
+        <span style="font-size:.78rem;color:var(--text2)">${t.description}</span>
+        <span></span>
+      </div>`).join('');
+
+    const summaryRow = grocTotal > 0 ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px;background:var(--surface2);border-radius:8px;margin-top:.75rem;font-size:.82rem">
+        <div><div style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:3px">Peter total</div><strong>$${pGrocTotal.toFixed(2)}</strong></div>
+        <div><div style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:3px">Tony total</div><strong>$${tGrocTotal.toFixed(2)}</strong></div>
+        <div><div style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:3px">Settlement</div>
+          ${grocOwed > 0
+            ? `<strong style="color:var(--amber)">Tony → Peter $${grocOwed.toFixed(2)}</strong>`
+            : grocOwed < 0
+              ? `<strong style="color:var(--blue)">Peter → Tony $${Math.abs(grocOwed).toFixed(2)}</strong>`
+              : `<strong style="color:var(--accent)">Even ✓</strong>`}
+        </div>
+      </div>
+      ${Math.abs(grocOwed) > 0 ? `<div style="margin-top:.75rem;display:flex;gap:.75rem;align-items:center">
+        ${grocPaid
+          ? `<span class="paid-btn paid-done">✓ Settled</span>`
+          : `<button class="paid-btn paid-pending" onclick="markIOUPaid('${grocKey}','groceries')">Mark settled</button>`}
+      </div>` : ''}` : '';
+
+    document.getElementById('iou-groceries').innerHTML = `
+      <div class="iou-grocery-row iou-header"><span>Date</span><span>Person</span><span>Amount</span><span>Shop</span><span></span></div>
+      ${rows}${summaryRow}`;
+  } else {
+    document.getElementById('iou-groceries').innerHTML = `<p style="font-size:.875rem;color:var(--text3);padding:.5rem 0">No grocery transactions found for ${monthLabel(key)}.</p>`;
+  }
+
+  // ── CAR INSURANCE ──
+  const insuranceCat = (pData?.transactions||[]).filter(t =>
+    t.category === 'Insurance' || (t.description||'').toLowerCase().includes('state') || (t.description||'').toLowerCase().includes('iag')
+  );
+  const insuranceTotal = insuranceCat.reduce((s,t) => s+Math.abs(t.amount), 0);
+  const insKey = iouKey('Insurance', key);
+  const insPaid = !!payments[insKey];
+
+  if (insuranceCat.length) {
+    const rows = insuranceCat.map(t => `
+      <div class="iou-row">
+        <span style="font-weight:500">${t.description}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:.72rem;color:var(--text3)">${t.date}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:.8rem;font-weight:500">$${Math.abs(t.amount).toFixed(2)}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:.8rem;color:${insPaid?'var(--accent)':'var(--amber)'}">$${Math.abs(t.amount).toFixed(2)}</span>
+        <span>${insPaid
+          ? `<span class="paid-btn paid-done">✓ Paid in full</span>`
+          : `<button class="paid-btn paid-pending" onclick="markIOUPaid('${insKey}','insurance')">Mark paid</button>`}</span>
+      </div>`).join('');
+
+    document.getElementById('iou-insurance').innerHTML = `
+      <div class="iou-row iou-header"><span>Policy</span><span>Date</span><span>Amount</span><span>Tony owes</span><span>Status</span></div>
+      ${rows}`;
+  } else {
+    document.getElementById('iou-insurance').innerHTML = `<p style="font-size:.875rem;color:var(--text3);padding:.5rem 0">No insurance expenses found for ${monthLabel(key)}.</p>`;
+  }
+
+  // Update banner
+  const insOwed = insuranceTotal > 0 && !insPaid ? insuranceTotal : 0;
+  const grocBal = !grocPaid ? Math.max(0, grocOwed) : 0;
+  const totalOwed = utilOwed + grocBal + insOwed;
+
+  const banner = document.getElementById('iou-banner');
+  if (totalOwed > 0) {
+    banner.className = 'iou-banner-owed';
+    banner.style.cssText = 'border-radius:12px;padding:1.5rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;background:var(--amber-l);border:1px solid var(--amber)';
+    banner.innerHTML = `
+      <div>
+        <div style="font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:600;color:var(--amber)">Tony owes Peter $${totalOwed.toFixed(2)}</div>
+        <div style="font-size:.8rem;color:var(--text2);margin-top:3px">for ${monthLabel(key)} — ${[utilOwed>0?`utilities $${utilOwed.toFixed(2)}`:'',grocBal>0?`groceries $${grocBal.toFixed(2)}`:'',insOwed>0?`insurance $${insOwed.toFixed(2)}`:''].filter(Boolean).join(' · ')}</div>
+      </div>`;
+  } else {
+    banner.style.cssText = 'border-radius:12px;padding:1.5rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;background:var(--accent-l);border:1px solid var(--accent)';
+    banner.innerHTML = `<div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:600;color:var(--accent)">✓ All settled for ${monthLabel(key)}</div>`;
+  }
+}
+
+function markIOUPaid(key, type) {
+  const payments = loadIOUPayments();
+  payments[key] = { paidAt: new Date().toISOString(), type };
+  saveIOUPayments(payments);
+  showCorrectionToast('Marked as paid ✓');
+  renderIOUMonth();
+  const { peter, tony } = { peter: _cache['peter']||{}, tony: _cache['tony']||{} };
+  renderIOUSummary(peter, tony, [...new Set([...sortedKeys(peter), ...sortedKeys(tony)])].sort());
+}
+
+function renderIOUSummary(peter, tony, allKeys) {
+  const payments = loadIOUPayments();
+
+  const rows = allKeys.slice().reverse().map(key => {
+    const pData = peter[key];
+    const tData = tony[key];
+
+    const sumCatFrom = (monthData, cat) => {
+      if (!monthData?.transactions) return 0;
+      return monthData.transactions.filter(t => t.category === cat).reduce((s,t) => s+Math.abs(t.amount), 0);
+    };
+
+    let totalOwed = 0;
+    let settled = 0;
+
+    // Utilities
+    ['Electricity','Wifi','Water'].forEach(cat => {
+      const pPaid = sumCatFrom(pData, cat);
+      const tPaid = sumCatFrom(tData, cat);
+      const outstanding = Math.max(0, pPaid/2 - tPaid);
+      if (payments[iouKey(cat, key)]) settled += outstanding;
+      else totalOwed += outstanding;
+    });
+
+    // Groceries
+    const pGroc = sumCatFrom(pData, 'Groceries');
+    const tGroc = sumCatFrom(tData, 'Groceries');
+    const grocOwed = Math.max(0, (pGroc - tGroc) / 2);
+    if (payments[iouKey('Groceries', key)]) settled += grocOwed;
+    else totalOwed += grocOwed;
+
+    // Insurance
+    const ins = sumCatFrom(pData, 'Insurance');
+    if (payments[iouKey('Insurance', key)]) settled += ins;
+    else totalOwed += ins;
+
+    const allSettled = totalOwed === 0;
+    return `<div class="tony-row">
+      <span style="font-weight:500">${monthLabel(key)}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:${totalOwed>0?'var(--amber)':'var(--accent)'}">$${totalOwed.toFixed(2)} outstanding</span>
+      <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--accent)">$${settled.toFixed(2)} settled</span>
+      <span><span class="paid-btn ${allSettled?'paid-done':'paid-pending'}" style="cursor:default">${allSettled?'✓ All clear':'Pending'}</span></span>
+      <span><button class="btn btn-secondary" style="padding:.3rem .65rem;font-size:.62rem" onclick="document.getElementById('iou-month-select').value='${key}';renderIOUMonth()">View →</button></span>
+    </div>`;
+  }).join('');
+
+  const totalOutstanding = allKeys.reduce((tot, key) => {
+    const pData = peter[key]; const tData = tony[key];
+    const sumCatFrom = (md, cat) => (md?.transactions||[]).filter(t=>t.category===cat).reduce((s,t)=>s+Math.abs(t.amount),0);
+    let owed = 0;
+    ['Electricity','Wifi','Water'].forEach(cat => { if (!payments[iouKey(cat,key)]) owed += Math.max(0, sumCatFrom(pData,cat)/2 - sumCatFrom(tData,cat)); });
+    const pG = sumCatFrom(pData,'Groceries'), tG = sumCatFrom(tData,'Groceries');
+    if (!payments[iouKey('Groceries',key)]) owed += Math.max(0, (pG-tG)/2);
+    if (!payments[iouKey('Insurance',key)]) owed += sumCatFrom(pData,'Insurance');
+    return tot + owed;
+  }, 0);
+
+  document.getElementById('iou-summary-table').innerHTML = `
+    <div style="font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:600;color:${totalOutstanding>0?'var(--amber)':'var(--accent)'};margin-bottom:1rem">
+      ${totalOutstanding > 0 ? `Tony owes Peter $${totalOutstanding.toFixed(2)} total` : '✓ All clear — no outstanding balances'}
+    </div>
+    <div class="tony-row tony-header"><span>Month</span><span>Outstanding</span><span>Settled</span><span>Status</span><span></span></div>
+    ${rows}`;
+}
+
+// ═══════════════════════════
 // UTILITY USAGE TRACKING
 // ═══════════════════════════
 let _usageCache = null;
@@ -2310,7 +2733,7 @@ let _usageCache = null;
 async function loadUsageData() {
   if (_usageCache) return _usageCache;
   try {
-    const snap = await getDoc(doc(db, 'settings', 'utility_usage'));
+    const snap = await getDoc(doc(db, 'shared', 'utility_usage'));
     _usageCache = snap.exists() ? (snap.data().months || {}) : {};
     return _usageCache;
   } catch(e) { return {}; }
@@ -2319,7 +2742,7 @@ async function loadUsageData() {
 async function saveUsageData(usageObj) {
   _usageCache = usageObj;
   try {
-    await setDoc(doc(db, 'settings', 'utility_usage'), { months: usageObj });
+    await setDoc(doc(db, 'shared', 'utility_usage'), { months: usageObj });
   } catch(e) { console.error('Usage save error:', e); }
 }
 
@@ -2411,7 +2834,7 @@ Object.assign(window, {
   switchDashTab, toggleReimb, saveUsage, loadUsageForMonth,
   deleteMonth, closeDetail, viewMonthDetail, updateDetailCat,
   selectName, confirmOtherName, forgetUser,
-  renderDashboard, renderHistory,
+  renderDashboard, renderHistory, renderIOU, renderIOUMonth, markIOUPaid,
   addCategory, removeCategory, removeCorrection, clearCorrections,
   openSplitModal, closeSplitModal, updateSplitA, updateSplitB, confirmSplit, unsplitTransaction
 });
