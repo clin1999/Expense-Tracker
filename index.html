@@ -556,6 +556,58 @@ select:focus{outline:none;border-color:var(--accent)}
           <div class="bar-chart-custom" id="house-cat-bars"></div>
         </div>
       </div>
+
+      <!-- Utility usage -->
+      <div class="card">
+        <div style="display:flex;align-items:baseline;gap:.75rem;margin-bottom:.25rem;flex-wrap:wrap;justify-content:space-between">
+          <div>
+            <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600">Electricity & Water usage</div>
+            <div style="font-size:.8rem;color:var(--text2);margin-top:2px">Log your monthly meter readings to track usage trends</div>
+          </div>
+        </div>
+        <!-- Month selector for usage entry -->
+        <div style="margin:1rem 0 .75rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+          <select id="usage-month-select" style="font-size:.8rem"></select>
+          <span style="font-size:.8rem;color:var(--text3)">Enter usage for this month:</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+          <div style="background:var(--surface2);border-radius:8px;padding:1rem">
+            <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:.5rem">⚡ Electricity</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="number" id="usage-elec" placeholder="e.g. 320" min="0" step="1"
+                style="flex:1;padding:.45rem .75rem;border:1px solid var(--border2);border-radius:6px;font-family:'DM Mono',monospace;font-size:.9rem;background:var(--surface);color:var(--text)">
+              <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text3)">kWh</span>
+            </div>
+          </div>
+          <div style="background:var(--surface2);border-radius:8px;padding:1rem">
+            <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:.5rem">💧 Water</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="number" id="usage-water" placeholder="e.g. 8.5" min="0" step="0.1"
+                style="flex:1;padding:.45rem .75rem;border:1px solid var(--border2);border-radius:6px;font-family:'DM Mono',monospace;font-size:.9rem;background:var(--surface);color:var(--text)">
+              <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text3)">m³</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:.75rem;align-items:center">
+          <button class="btn btn-primary" onclick="saveUsage()">Save usage</button>
+          <span id="usage-saved-confirm" style="display:none;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--accent)">✓ Saved!</span>
+        </div>
+
+        <!-- Usage trend charts -->
+        <div style="margin-top:1.5rem" id="usage-charts-wrap">
+          <div class="two-col" style="margin-bottom:0">
+            <div>
+              <div class="card-label" style="margin-bottom:.5rem">⚡ Electricity usage (kWh) vs cost</div>
+              <div class="chart-wrap" style="height:180px"><canvas id="chart-elec-usage"></canvas></div>
+            </div>
+            <div>
+              <div class="card-label" style="margin-bottom:.5rem">💧 Water usage (m³) vs cost</div>
+              <div class="chart-wrap" style="height:180px"><canvas id="chart-water-usage"></canvas></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Tony balance tracker -->
       <div class="card">
         <div style="display:flex;align-items:baseline;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap">
@@ -573,14 +625,23 @@ select:focus{outline:none;border-color:var(--accent)}
         <p id="personal-subtitle">Your spending, savings & investments</p>
       </div>
       <div class="metric-grid" id="personal-metrics"></div>
+      <!-- Cumulative totals -->
+      <div class="card" id="cumulative-card" style="background:var(--accent-l);border-color:var(--accent)">
+        <div class="card-label" style="color:var(--accent);margin-bottom:.75rem">All time totals</div>
+        <div class="metric-grid" id="cumulative-metrics" style="margin-bottom:0"></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Monthly spend vs take home pay</div>
+        <div class="chart-wrap" style="height:200px"><canvas id="chart-personal-trend"></canvas></div>
+      </div>
       <div class="two-col">
         <div class="card">
-          <div class="card-label">Monthly spend vs pay</div>
-          <div class="chart-wrap" style="height:200px"><canvas id="chart-personal-trend"></canvas></div>
+          <div class="card-label">Monthly savings & net position</div>
+          <div class="chart-wrap" style="height:200px"><canvas id="chart-savings"></canvas></div>
         </div>
         <div class="card">
-          <div class="card-label">Savings over time</div>
-          <div class="chart-wrap" style="height:200px"><canvas id="chart-savings"></canvas></div>
+          <div class="card-label">Cumulative savings</div>
+          <div class="chart-wrap" style="height:200px"><canvas id="chart-cumulative"></canvas></div>
         </div>
       </div>
       <div class="card">
@@ -1333,7 +1394,9 @@ function buildStep4() {
   const workTotal = categorisedResults.filter(r=>r.sheet==='Work').reduce((s,r)=>s+Math.abs(r.amount),0);
   const investTotal = sumCat('Sharesies')+sumCat('Hatch')+sumCat('KiwiSaver')+sumCat('ASB Investment');
   const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!['Take Home Pay','Brother Transfer','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
-  const savings = pay - (personalSpend + investTotal + houseTotal/2);
+  const houseShare = houseTotal / 2;
+  const savings = pay - personalSpend - houseShare;
+  const netPosition = savings + investTotal;
 
   document.getElementById('step4-metrics').innerHTML = `
     <div class="metric"><div class="metric-label">Transactions</div><div class="metric-value">${categorisedResults.length}</div></div>
@@ -1341,7 +1404,8 @@ function buildStep4() {
     <div class="metric"><div class="metric-label">Personal spend</div><div class="metric-value">$${personalSpend.toFixed(0)}</div></div>
     ${workTotal > 0 ? `<div class="metric"><div class="metric-label">Work (reimb.)</div><div class="metric-value" style="color:var(--amber)">$${workTotal.toFixed(0)}</div></div>` : ''}
     ${pay ? `<div class="metric"><div class="metric-label">Take home pay</div><div class="metric-value">$${pay.toFixed(0)}</div></div>` : ''}
-    ${pay ? `<div class="metric"><div class="metric-label">Est. savings</div><div class="metric-value ${savings>=0?'metric-pos':'metric-neg'}">$${savings.toFixed(0)}</div></div>` : ''}
+    ${pay ? `<div class="metric"><div class="metric-label">True savings</div><div class="metric-value ${savings>=0?'metric-pos':'metric-neg'}">$${savings.toFixed(0)}</div><div class="metric-sub">pay − spend − house share</div></div>` : ''}
+    ${pay ? `<div class="metric"><div class="metric-label">Net position</div><div class="metric-value metric-pos">$${netPosition.toFixed(0)}</div><div class="metric-sub">savings + investments</div></div>` : ''}
   `;
 
   // Results table
@@ -1389,7 +1453,9 @@ function buildStep4() {
   const totalExcInv=eating+jetts+google+haircut+health+transport+shopping+royalNZ+other+mobile;
   const totalInv=sharesies+hatch+ks+asbInv;
   const totalExpense=totalExcInv+totalInv;
-  const savingsCalc=pay-totalExpense;
+  const houseShareCalc = houseTotal/2;
+  const savingsCalc = pay - totalExcInv - houseShareCalc;
+  const netPositionCalc = savingsCalc + totalInv;
 
   const pRows=[['Eating out',eating],['Jetts',jetts],['(+) Sharesies',sharesies],['(+) Hatch',hatch],
     ['(+) KS (KiwiSaver)',ks],['(+) ASB investment fund',asbInv],['Google One',google],
@@ -1457,7 +1523,9 @@ async function _doSave() {
   const investTotal = sharesies+hatch+ks+asbInv;
   const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!['Take Home Pay','Brother Transfer','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const workTotal = categorisedResults.filter(r=>r.sheet==='Work').reduce((s,r)=>s+Math.abs(r.amount),0);
-  const savings = pay - personalSpend - investTotal;
+  const houseShareSave = houseTotal / 2;
+  const savings = pay - personalSpend - houseShareSave;
+  const netPosition = savings + investTotal;
 
   data[currentMonthKey] = {
     key: currentMonthKey,
@@ -1467,7 +1535,7 @@ async function _doSave() {
     transactions: categorisedResults,
     summary: {
       houseTotal, tonyContrib, peterContrib: houseTotal - tonyContrib,
-      pay, personalSpend, investTotal, workTotal, savings,
+      pay, personalSpend, investTotal, workTotal, savings, netPosition, houseShare: houseShareSave,
       categories: {
         Groceries:groceries, Electricity:electricity, Water:water,
         'Council Rates':council, Wifi:wifi, Insurance:insurance,
@@ -1559,7 +1627,10 @@ async function renderDashboard() {
     <div class="legend-item"><div class="legend-dot" style="background:rgba(45,90,61,0.8)"></div>Peter</div>
     <div class="legend-item"><div class="legend-dot" style="background:rgba(26,61,107,0.8)"></div>Tony</div>`;
 
-  // House category bars
+  // Utility usage charts
+  const usageData = await loadUsageData();
+  populateUsageMonthSelect(keys);
+  renderUsageCharts(data, keys, usageData);
   const latestKey = keys[keys.length-1];
   renderHouseCatBars(latestKey, data);
   document.getElementById('house-cat-pills').innerHTML = keys.map(k=>`<button class="month-pill${k===latestKey?' active':''}" onclick="selectHouseCatMonth('${k}')">${monthLabel(k)}</button>`).join('');
@@ -1588,13 +1659,26 @@ async function renderDashboard() {
 
   document.getElementById('personal-metrics').innerHTML = `
     <div class="metric"><div class="metric-label">Take home pay</div><div class="metric-value">$${s.pay.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.pay,prevS?.pay)} vs last month</div></div>
-    <div class="metric"><div class="metric-label">Personal spend</div><div class="metric-value">$${s.personalSpend.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.personalSpend,prevS?.personalSpend)} vs last month</div></div>
+    <div class="metric"><div class="metric-label">True expenses</div><div class="metric-value">$${s.personalSpend.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.personalSpend,prevS?.personalSpend)} vs last month</div></div>
     <div class="metric"><div class="metric-label">Investments</div><div class="metric-value">$${s.investTotal.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.investTotal,prevS?.investTotal)} vs last month</div></div>
-    <div class="metric"><div class="metric-label">Savings</div><div class="metric-value ${s.savings>=0?'metric-pos':'metric-neg'}">$${s.savings.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.savings,prevS?.savings)} vs last month</div></div>
+    <div class="metric"><div class="metric-label">True savings</div><div class="metric-value ${s.savings>=0?'metric-pos':'metric-neg'}">$${s.savings.toFixed(0)}</div><div class="metric-sub">pay − expenses − house share</div></div>
+    <div class="metric"><div class="metric-label">Net position</div><div class="metric-value metric-pos">$${(s.netPosition||s.savings+s.investTotal).toFixed(0)}</div><div class="metric-sub">savings + investments</div></div>
     ${(s.workTotal||0)>0?`<div class="metric"><div class="metric-label">Work to claim</div><div class="metric-value" style="color:var(--amber)">$${s.workTotal.toFixed(0)}</div><div class="metric-sub">reimbursable</div></div>`:''}
   `;
 
-  // Personal spend vs pay chart
+  // Cumulative all-time metrics
+  const totalSavings = keys.reduce((t,k)=>t+(data[k].summary.savings||0),0);
+  const totalNetPos = keys.reduce((t,k)=>t+(data[k].summary.netPosition||(data[k].summary.savings+(data[k].summary.investTotal||0))),0);
+  const totalInvested = keys.reduce((t,k)=>t+(data[k].summary.investTotal||0),0);
+  const totalPay = keys.reduce((t,k)=>t+(data[k].summary.pay||0),0);
+  const totalSpend = keys.reduce((t,k)=>t+(data[k].summary.personalSpend||0),0);
+  document.getElementById('cumulative-metrics').innerHTML = `
+    <div class="metric" style="background:transparent;border-color:rgba(45,90,61,0.2)"><div class="metric-label">Total saved</div><div class="metric-value ${totalSavings>=0?'metric-pos':'metric-neg'}">$${totalSavings.toFixed(0)}</div><div class="metric-sub">across ${keys.length} month${keys.length>1?'s':''}</div></div>
+    <div class="metric" style="background:transparent;border-color:rgba(45,90,61,0.2)"><div class="metric-label">Total net position</div><div class="metric-value metric-pos">$${totalNetPos.toFixed(0)}</div><div class="metric-sub">savings + investments</div></div>
+    <div class="metric" style="background:transparent;border-color:rgba(45,90,61,0.2)"><div class="metric-label">Total invested</div><div class="metric-value" style="color:var(--blue)">$${totalInvested.toFixed(0)}</div><div class="metric-sub">Sharesies, Hatch, KS, ASB</div></div>
+    <div class="metric" style="background:transparent;border-color:rgba(45,90,61,0.2)"><div class="metric-label">Total earned</div><div class="metric-value">$${totalPay.toFixed(0)}</div><div class="metric-sub">take home pay</div></div>
+    <div class="metric" style="background:transparent;border-color:rgba(45,90,61,0.2)"><div class="metric-label">Total spent</div><div class="metric-value">$${totalSpend.toFixed(0)}</div><div class="metric-sub">true expenses only</div></div>
+  `;
   destroyChart('personal-trend');
   chartInstances['personal-trend'] = new Chart(document.getElementById('chart-personal-trend'), {
     type:'bar',
@@ -1608,13 +1692,31 @@ async function renderDashboard() {
       scales:{x:{stacked:true,grid:{display:false},ticks:{font:{family:'DM Mono',size:10}}},y:{stacked:false,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{family:'DM Mono',size:10},callback:v=>'$'+v}}} }
   });
 
-  // Savings line
+  // Savings + net position chart
   destroyChart('savings');
   const savingsTrend = keys.map(k => data[k].summary.savings||0);
+  const netPosTrend = keys.map(k => data[k].summary.netPosition||(data[k].summary.savings+(data[k].summary.investTotal||0)));
   chartInstances['savings'] = new Chart(document.getElementById('chart-savings'), {
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'True savings',data:savingsTrend,backgroundColor:savingsTrend.map(v=>v>=0?'rgba(45,90,61,0.7)':'rgba(160,40,40,0.7)'),borderRadius:4,borderSkipped:false},
+      {label:'Net position',data:netPosTrend,type:'line',borderColor:'#1a3d6b',backgroundColor:'transparent',tension:.4,pointRadius:4,pointBackgroundColor:'#1a3d6b',borderWidth:2},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'top',labels:{font:{family:'DM Mono',size:10},usePointStyle:true,pointStyleWidth:8}},tooltip:{titleFont:{family:'DM Mono'},bodyFont:{family:'DM Sans'},callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y?.toFixed(0)}`}}},scales:{x:{grid:{display:false},ticks:{font:{family:'DM Mono',size:9}}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{family:'DM Mono',size:9},callback:v=>'$'+v}}}}
+  });
+
+  // Cumulative savings chart
+  destroyChart('cumulative');
+  let cumSavings = 0, cumNet = 0;
+  const cumSavingsData = keys.map(k => { cumSavings += (data[k].summary.savings||0); return cumSavings; });
+  const cumNetData = keys.map(k => { cumNet += (data[k].summary.netPosition||(data[k].summary.savings+(data[k].summary.investTotal||0))); return cumNet; });
+  chartInstances['cumulative'] = new Chart(document.getElementById('chart-cumulative'), {
     type:'line',
-    data:{labels,datasets:[{label:'Savings',data:savingsTrend,borderColor:'#2d5a3d',backgroundColor:'rgba(45,90,61,0.08)',tension:.4,pointRadius:4,pointBackgroundColor:savingsTrend.map(v=>v>=0?'#2d5a3d':'#a02828'),borderWidth:2,fill:true}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{titleFont:{family:'DM Mono'},bodyFont:{family:'DM Sans'},callbacks:{label:ctx=>`Savings: $${ctx.parsed.y?.toFixed(0)}`}}},scales:{x:{grid:{display:false},ticks:{font:{family:'DM Mono',size:9}}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{family:'DM Mono',size:9},callback:v=>'$'+v}}}}
+    data:{labels,datasets:[
+      {label:'Cumulative savings',data:cumSavingsData,borderColor:'#2d5a3d',backgroundColor:'rgba(45,90,61,0.08)',tension:.4,pointRadius:4,pointBackgroundColor:cumSavingsData.map(v=>v>=0?'#2d5a3d':'#a02828'),borderWidth:2,fill:true},
+      {label:'Cumulative net',data:cumNetData,borderColor:'#1a3d6b',backgroundColor:'rgba(26,61,107,0.05)',tension:.4,pointRadius:4,pointBackgroundColor:'#1a3d6b',borderWidth:2,fill:true,borderDash:[4,3]},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'top',labels:{font:{family:'DM Mono',size:10},usePointStyle:true,pointStyleWidth:8}},tooltip:{titleFont:{family:'DM Mono'},bodyFont:{family:'DM Sans'},callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y?.toFixed(0)}`}}},scales:{x:{grid:{display:false},ticks:{font:{family:'DM Mono',size:9}}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{family:'DM Mono',size:9},callback:v=>'$'+v}}}}
   });
 
   // Investments chart
@@ -1842,7 +1944,9 @@ async function viewMonthDetail(key) {
   const totalExcInv = eating+jetts+google+haircut+health+transport+shopping+royalNZ;
   const totalInv = sharesies+hatch+ks+asbInv;
   const totalExpense = totalExcInv+totalInv;
-  const savingsCalc = s.pay - totalExpense;
+  const houseShareDetail = (s.houseTotal||0)/2;
+  const savingsCalc = s.pay - totalExcInv - houseShareDetail;
+  const netPositionDetail = savingsCalc + totalInv;
 
   const pRows = [
     ['Eating out', eating], ['Jetts', jetts],
@@ -1852,9 +1956,10 @@ async function viewMonthDetail(key) {
     ['Transport/parking', transport], ['Shopping', shopping], ['Travel', travel],
     ['Royal New Zealand Fo', royalNZ],
     ['Take Home pay', s.pay],
-    ['Total (excl investment)', totalExcInv],
-    ['Total expense', totalExpense],
-    ['Savings', savingsCalc],
+    ['House share (half)', houseShareDetail],
+    ['Total true expenses', totalExcInv+houseShareDetail],
+    ['True savings', savingsCalc],
+    ['Net position (savings + investments)', netPositionDetail],
   ].filter(r => r[1] !== 0);
   document.getElementById('detail-personal-export').innerHTML = `<table class="export-table">
     <thead><tr style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)"><td style="padding:6px 10px">Column</td><td style="padding:6px 10px">Value</td></tr></thead>
@@ -1918,7 +2023,7 @@ async function viewMonthDetailFromData(key, data) {
   const cats = {};
   getAllCatsSync().forEach(c => cats[c] = txns.filter(r=>r.category===c).reduce((s,r)=>s+Math.abs(r.amount),0));
 
-  data[key].summary = { ...d.summary, houseTotal, tonyContrib, peterContrib:houseTotal-tonyContrib, pay, personalSpend, investTotal, savings, categories:cats };
+  data[key].summary = { ...d.summary, houseTotal, tonyContrib, peterContrib:houseTotal-tonyContrib, pay, personalSpend, investTotal, savings, netPosition, houseShare: houseShareUpd, categories:cats };
   await saveAllData(data, key);
   await renderDashboard();
 
@@ -2198,13 +2303,112 @@ async function clearCorrections() {
 }
 
 // ═══════════════════════════
+// UTILITY USAGE TRACKING
+// ═══════════════════════════
+let _usageCache = null;
+
+async function loadUsageData() {
+  if (_usageCache) return _usageCache;
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'utility_usage'));
+    _usageCache = snap.exists() ? (snap.data().months || {}) : {};
+    return _usageCache;
+  } catch(e) { return {}; }
+}
+
+async function saveUsageData(usageObj) {
+  _usageCache = usageObj;
+  try {
+    await setDoc(doc(db, 'settings', 'utility_usage'), { months: usageObj });
+  } catch(e) { console.error('Usage save error:', e); }
+}
+
+function populateUsageMonthSelect(keys) {
+  const sel = document.getElementById('usage-month-select');
+  if (!sel) return;
+  sel.innerHTML = keys.slice().reverse().map(k =>
+    `<option value="${k}">${monthLabel(k)}</option>`
+  ).join('');
+  // Pre-fill if data exists
+  sel.addEventListener('change', loadUsageForMonth);
+  loadUsageForMonth();
+}
+
+async function loadUsageForMonth() {
+  const key = document.getElementById('usage-month-select')?.value;
+  if (!key) return;
+  const usage = await loadUsageData();
+  const m = usage[key] || {};
+  document.getElementById('usage-elec').value = m.elec || '';
+  document.getElementById('usage-water').value = m.water || '';
+}
+
+async function saveUsage() {
+  const key = document.getElementById('usage-month-select')?.value;
+  if (!key) return;
+  const elec = parseFloat(document.getElementById('usage-elec').value) || 0;
+  const water = parseFloat(document.getElementById('usage-water').value) || 0;
+  const usage = await loadUsageData();
+  usage[key] = { elec, water };
+  await saveUsageData(usage);
+  const confirm = document.getElementById('usage-saved-confirm');
+  confirm.style.display = 'inline';
+  setTimeout(() => confirm.style.display = 'none', 2500);
+  // Re-render charts
+  const data = await loadAllData();
+  renderUsageCharts(data, sortedKeys(data), usage);
+}
+
+async function renderUsageCharts(data, keys, usageData) {
+  if (!usageData) usageData = await loadUsageData();
+  const labels = keys.map(k => monthLabel(k));
+  const elecCosts = keys.map(k => data[k]?.summary?.categories?.Electricity || 0);
+  const waterCosts = keys.map(k => data[k]?.summary?.categories?.Water || 0);
+  const elecUsage = keys.map(k => usageData[k]?.elec || null);
+  const waterUsage = keys.map(k => usageData[k]?.water || null);
+
+  const chartOpts = (costLabel, usageLabel, unit) => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, position: 'top', labels: { font: { family: 'DM Mono', size: 10 }, usePointStyle: true, pointStyleWidth: 8 } },
+      tooltip: { titleFont: { family: 'DM Mono' }, bodyFont: { family: 'DM Sans' },
+        callbacks: { label: ctx => ctx.dataset.label === usageLabel ? `${ctx.parsed.y} ${unit}` : `$${ctx.parsed.y?.toFixed(2)}` }
+      }
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { family: 'DM Mono', size: 9 } } },
+      y: { position: 'left', grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { family: 'DM Mono', size: 9 }, callback: v => '$' + v } },
+      y2: { position: 'right', grid: { display: false }, ticks: { font: { family: 'DM Mono', size: 9 }, callback: v => v + ' ' + unit } }
+    }
+  });
+
+  destroyChart('elec-usage');
+  chartInstances['elec-usage'] = new Chart(document.getElementById('chart-elec-usage'), {
+    data: { labels, datasets: [
+      { type: 'bar', label: 'Cost ($)', data: elecCosts, backgroundColor: 'rgba(122,79,16,0.7)', borderRadius: 4, yAxisID: 'y' },
+      { type: 'line', label: 'Usage (kWh)', data: elecUsage, borderColor: '#2d5a3d', backgroundColor: 'transparent', tension: .4, pointRadius: 4, borderWidth: 2, yAxisID: 'y2', spanGaps: false }
+    ]},
+    options: chartOpts('Cost ($)', 'Usage (kWh)', 'kWh')
+  });
+
+  destroyChart('water-usage');
+  chartInstances['water-usage'] = new Chart(document.getElementById('chart-water-usage'), {
+    data: { labels, datasets: [
+      { type: 'bar', label: 'Cost ($)', data: waterCosts, backgroundColor: 'rgba(26,61,107,0.7)', borderRadius: 4, yAxisID: 'y' },
+      { type: 'line', label: 'Usage (m³)', data: waterUsage, borderColor: '#0f5a4a', backgroundColor: 'transparent', tension: .4, pointRadius: 4, borderWidth: 2, yAxisID: 'y2', spanGaps: false }
+    ]},
+    options: chartOpts('Cost ($)', 'Usage (m³)', 'm³')
+  });
+}
+
+// ═══════════════════════════
 // EXPOSE TO WINDOW (module scope fix)
 // ═══════════════════════════
 Object.assign(window, {
   showPage, switchInner, loadSample, goToPrompt, copyPrompt, loadResults,
   saveCurrentMonth, togglePaste, handleFiles, removeFile,
   selectCatMonth, selectHouseCatMonth, selectPersonalCatMonth,
-  switchDashTab, toggleReimb,
+  switchDashTab, toggleReimb, saveUsage, loadUsageForMonth,
   deleteMonth, closeDetail, viewMonthDetail, updateDetailCat,
   selectName, confirmOtherName, forgetUser,
   renderDashboard, renderHistory,
