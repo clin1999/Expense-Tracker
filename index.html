@@ -1514,6 +1514,50 @@ function sumCat(cat, results) {
   return results.filter(r => r.category === cat).reduce((s,r) => s + Math.abs(r.amount), 0);
 }
 
+function updateResultCat(idx, selectEl) {
+  const newCat = selectEl.value;
+  const oldCat = categorisedResults[idx].category;
+  const newSheet = getHouseCatsSync().includes(newCat) ? 'House' : getWorkCatsSync().includes(newCat) ? 'Work' : 'Personal';
+  categorisedResults[idx].category = newCat;
+  categorisedResults[idx].sheet = newSheet;
+
+  // Update badge in-place — no full rebuild
+  const badgeEl = document.getElementById(`sheet-badge-${idx}`);
+  if (badgeEl) {
+    badgeEl.innerHTML = `<span class="badge badge-${newSheet==='House'?'house':newSheet==='Work'?'work':'personal'}">${newSheet}</span>`;
+  }
+
+  // Update split row styling if applicable
+  const row = selectEl.closest('.result-row');
+  if (row && categorisedResults[idx]._splitFrom !== undefined) {
+    row.style.background = newSheet === 'House' ? 'var(--accent-l)' : newSheet === 'Work' ? 'var(--amber-l)' : 'var(--purple-l)';
+  }
+
+  // Rebuild just the summary sections (not the table)
+  rebuildStep4Summary();
+}
+
+function rebuildStep4Summary() {
+  const pay = sumCat('Take Home Pay');
+  const houseTotal = categorisedResults.filter(r=>r.sheet==='House').reduce((s,r)=>s+Math.abs(r.amount),0);
+  const workTotal = categorisedResults.filter(r=>r.sheet==='Work').reduce((s,r)=>s+Math.abs(r.amount),0);
+  const investTotal = sumCat('Sharesies')+sumCat('Hatch')+sumCat('KiwiSaver')+sumCat('ASB Investment');
+  const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!['Take Home Pay','Brother Transfer','Work Reimbursement','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
+  const houseShare = houseTotal / 2;
+  const savings = pay - personalSpend - houseShare;
+  const netPosition = savings + investTotal;
+
+  document.getElementById('step4-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Transactions</div><div class="metric-value">${categorisedResults.length}</div></div>
+    <div class="metric"><div class="metric-label">House total</div><div class="metric-value">$${houseTotal.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Personal spend</div><div class="metric-value">$${personalSpend.toFixed(0)}</div></div>
+    ${workTotal > 0 ? `<div class="metric"><div class="metric-label">Work (reimb.)</div><div class="metric-value" style="color:var(--amber)">$${workTotal.toFixed(0)}</div></div>` : ''}
+    ${pay ? `<div class="metric"><div class="metric-label">Take home pay</div><div class="metric-value">$${pay.toFixed(0)}</div></div>` : ''}
+    ${pay ? `<div class="metric"><div class="metric-label">True savings</div><div class="metric-value ${savings>=0?'metric-pos':'metric-neg'}">$${savings.toFixed(0)}</div></div>` : ''}
+    ${pay ? `<div class="metric"><div class="metric-label">Net position</div><div class="metric-value metric-pos">$${netPosition.toFixed(0)}</div></div>` : ''}
+  `;
+}
+
 function buildStep4() {
   document.getElementById('step4-empty').style.display = 'none';
   document.getElementById('step4-content').style.display = 'block';
@@ -1546,8 +1590,8 @@ function buildStep4() {
       <span style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--text3)">${r.date||''}</span>
       <span style="font-size:.8rem">${isSplit?'↳ ':''}<span style="${isSplit?'color:var(--accent)':''}">${r.description}</span></span>
       <span style="font-family:'DM Mono',monospace;font-size:.78rem;font-weight:500;color:${isIncome?'var(--accent)':'var(--text)'}">$${Math.abs(r.amount).toFixed(2)}</span>
-      <span class="hide-mobile"><select class="cat-select" onchange="categorisedResults[${i}].category=this.value;categorisedResults[${i}].sheet=getHouseCatsSync().includes(this.value)?'House':getWorkCatsSync().includes(this.value)?'Work':'Personal';buildStep4()">${getAllCatsSync().map(c=>`<option value="${c}"${r.category===c?' selected':''}>${c}</option>`).join('')}</select></span>
-      <span class="hide-mobile"><span class="badge badge-${r.sheet==='House'?'house':r.sheet==='Work'?'work':'personal'}">${r.sheet}</span></span>
+      <span class="hide-mobile"><select class="cat-select" onchange="updateResultCat(${i}, this)">${getAllCatsSync().map(c=>`<option value="${c}"${r.category===c?' selected':''}>${c}</option>`).join('')}</select></span>
+      <span class="hide-mobile" id="sheet-badge-${i}"><span class="badge badge-${r.sheet==='House'?'house':r.sheet==='Work'?'work':'personal'}">${r.sheet}</span></span>
       <span class="hide-mobile">${isSplit
         ? `<button onclick="unsplitTransaction(${r._splitFrom})" title="Unsplit" style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text3);font-family:'DM Mono',monospace;padding:2px 4px;border-radius:4px;border:1px solid var(--border)" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">unsplit</button>`
         : `<button onclick="openSplitModal(${i})" title="Split this transaction" style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text3);font-family:'DM Mono',monospace;padding:2px 4px;border-radius:4px;border:1px solid var(--border)" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'">split</button>`
@@ -2830,6 +2874,7 @@ async function renderUsageCharts(data, keys, usageData) {
 Object.assign(window, {
   showPage, switchInner, loadSample, goToPrompt, copyPrompt, loadResults,
   saveCurrentMonth, togglePaste, handleFiles, removeFile,
+  updateResultCat,
   selectCatMonth, selectHouseCatMonth, selectPersonalCatMonth,
   switchDashTab, toggleReimb, saveUsage, loadUsageForMonth,
   deleteMonth, closeDetail, viewMonthDetail, updateDetailCat,
