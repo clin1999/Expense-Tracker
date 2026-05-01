@@ -291,6 +291,9 @@ select:focus{outline:none;border-color:var(--accent)}
 }
 .file-chip button:hover { opacity: 1; }
 
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--text); border-radius: 50%; animation: spin .7s linear infinite; }
+
 /* IOU TABLE */
 .iou-row {
   display: grid;
@@ -577,9 +580,14 @@ select:focus{outline:none;border-color:var(--accent)}
 
   <div id="dash-content" style="display:none">
     <!-- Dashboard sub-tabs -->
-    <div class="dash-tabs">
-      <button class="dash-tab active" onclick="switchDashTab('house')">🏠 House</button>
-      <button class="dash-tab" onclick="switchDashTab('personal')">👤 Personal</button>
+    <div class="dash-tabs" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+      <div style="display:flex;gap:8px">
+        <button class="dash-tab active" onclick="switchDashTab('house')">🏠 House</button>
+        <button class="dash-tab" onclick="switchDashTab('personal')">👤 Personal</button>
+      </div>
+      <button class="btn btn-secondary" onclick="refreshDashboard()" id="dash-refresh-btn" style="display:flex;align-items:center;gap:6px;padding:.45rem 1rem">
+        <span id="dash-refresh-icon">↺</span> Refresh
+      </button>
     </div>
 
     <!-- ── HOUSE TAB ── -->
@@ -868,8 +876,15 @@ select:focus{outline:none;border-color:var(--accent)}
 ═══════════════════════════════════════════════ -->
 <div id="page-history" class="page">
   <div class="page-header">
-    <h1>History</h1>
-    <p>All saved months — click any entry to view Excel values</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem">
+      <div>
+        <h1>History</h1>
+        <p>All saved months — click any entry to view Excel values</p>
+      </div>
+      <button class="btn btn-secondary" onclick="refreshHistory()" id="history-refresh-btn" style="display:flex;align-items:center;gap:6px">
+        <span id="history-refresh-icon">↺</span> Refresh
+      </button>
+    </div>
   </div>
   <div class="card" id="history-empty" style="display:none">
     <div class="empty"><div class="empty-icon">🗂️</div><p>No months saved yet.</p></div>
@@ -927,8 +942,15 @@ select:focus{outline:none;border-color:var(--accent)}
 ═══════════════════════════════════════════════ -->
 <div id="page-iou" class="page">
   <div class="page-header">
-    <h1>IOU</h1>
-    <p>Track what Peter and Tony owe each other</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem">
+      <div>
+        <h1>IOU</h1>
+        <p>Track what Peter and Tony owe each other</p>
+      </div>
+      <button class="btn btn-secondary" onclick="refreshIOU()" id="iou-refresh-btn" style="display:flex;align-items:center;gap:6px">
+        <span id="iou-refresh-icon">↺</span> Refresh
+      </button>
+    </div>
   </div>
 
   <div id="iou-empty" class="card" style="display:none">
@@ -2047,6 +2069,44 @@ async function selectCatMonth(key) { await selectHouseCatMonth(key); }
 // ═══════════════════════════
 // HISTORY
 // ═══════════════════════════
+async function refreshDashboard() {
+  const btn = document.getElementById('dash-refresh-btn');
+  const icon = document.getElementById('dash-refresh-icon');
+  btn.disabled = true;
+  icon.style.animation = 'spin .7s linear infinite';
+  _cache = {};
+  await renderDashboard();
+  icon.style.animation = '';
+  btn.disabled = false;
+  showCorrectionToast('Dashboard refreshed');
+}
+
+async function refreshIOU() {
+  const btn = document.getElementById('iou-refresh-btn');
+  const icon = document.getElementById('iou-refresh-icon');
+  btn.disabled = true;
+  icon.style.animation = 'spin .7s linear infinite';
+  _cache = {};
+  await renderIOU();
+  icon.style.animation = '';
+  btn.disabled = false;
+  showCorrectionToast('IOU refreshed');
+}
+
+async function refreshHistory() {
+  const btn = document.getElementById('history-refresh-btn');
+  const icon = document.getElementById('history-refresh-icon');
+  btn.disabled = true;
+  icon.style.display = 'inline-block';
+  icon.style.animation = 'spin .7s linear infinite';
+  // Clear cache so fresh data is fetched from Firebase
+  _cache = {};
+  await renderHistory();
+  icon.style.animation = '';
+  btn.disabled = false;
+  showCorrectionToast('History refreshed');
+}
+
 async function renderHistory() {
   const data = await loadAllData();
   const keys = sortedKeys(data).reverse();
@@ -2176,32 +2236,128 @@ async function viewMonthDetail(key) {
 async function renderDetailTxnTable(key) {
   const data = await loadAllData();
   const txns = data[key]?.transactions || [];
-  let thtml = `<div class="result-row result-header"><span>Date</span><span>Description</span><span>Amount</span><span class="hide-mobile">Category</span><span class="hide-mobile">Sheet</span></div>`;
+  let thtml = `<div class="result-row result-header" style="grid-template-columns:68px 1fr 80px 138px 70px 60px">
+    <span>Date</span><span>Description</span><span>Amount</span>
+    <span class="hide-mobile">Category</span><span class="hide-mobile">Sheet</span><span class="hide-mobile"></span>
+  </div>`;
   txns.forEach((r, i) => {
     const isIncome = r.amount < 0;
-    thtml += `<div class="result-row">
+    const isSplit = r._splitFrom !== undefined;
+    thtml += `<div class="result-row" style="grid-template-columns:68px 1fr 80px 138px 70px 60px;${isSplit?'background:var(--accent-l);':''}">
       <span style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--text3)">${r.date||''}</span>
-      <span style="font-size:.8rem">${r.description}</span>
+      <span style="font-size:.8rem">${isSplit?'↳ ':''}<span style="${isSplit?'color:var(--accent)':''}">${r.description}</span></span>
       <span style="font-family:'DM Mono',monospace;font-size:.78rem;font-weight:500;color:${isIncome?'var(--accent)':'var(--text)'}">$${Math.abs(r.amount).toFixed(2)}</span>
-      <span class="hide-mobile"><select class="cat-select" onchange="updateDetailCat('${key}',${i},this.value)">${getAllCatsSync().map(c=>`<option value="${c}"${r.category===c?' selected':''}>${c}</option>`).join('')}</select></span>
-      <span class="hide-mobile"><span class="badge badge-${r.sheet==='House'?'house':r.sheet==='Work'?'work':'personal'}">${r.sheet}</span></span>
+      <span class="hide-mobile">
+        <select class="cat-select" onchange="updateDetailCatInPlace('${key}',${i},this,this.value)">
+          ${getAllCatsSync().map(c=>`<option value="${c}"${r.category===c?' selected':''}>${c}</option>`).join('')}
+        </select>
+      </span>
+      <span class="hide-mobile" id="detail-badge-${key}-${i}">
+        <span class="badge badge-${r.sheet==='House'?'house':r.sheet==='Work'?'work':'personal'}">${r.sheet}</span>
+      </span>
+      <span class="hide-mobile">
+        ${isSplit
+          ? `<button onclick="unsplitDetailTransaction('${key}',${r._splitFrom})" title="Unsplit"
+              style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text3);font-family:'DM Mono',monospace;padding:2px 4px;border-radius:4px;border:1px solid var(--border)"
+              onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">unsplit</button>`
+          : `<button onclick="openDetailSplitModal('${key}',${i})" title="Split transaction"
+              style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text3);font-family:'DM Mono',monospace;padding:2px 4px;border-radius:4px;border:1px solid var(--border)"
+              onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'">split</button>`
+        }
+      </span>
     </div>`;
   });
   document.getElementById('detail-txn-table').innerHTML = thtml;
 }
 
-async function updateDetailCat(key, idx, newCat) {
+async function updateDetailCatInPlace(key, idx, selectEl, newCat) {
   const houseSheetCats = getHouseCatsSync();
   const workSheetCats = getWorkCatsSync();
+  const newSheet = houseSheetCats.includes(newCat) ? 'House' : workSheetCats.includes(newCat) ? 'Work' : 'Personal';
+
+  // Update badge instantly
+  const badgeEl = document.getElementById(`detail-badge-${key}-${idx}`);
+  if (badgeEl) badgeEl.innerHTML = `<span class="badge badge-${newSheet==='House'?'house':newSheet==='Work'?'work':'personal'}">${newSheet}</span>`;
+
+  // Save to Firebase
   const data = await loadAllData();
   if (!data[key]) return;
   const txn = data[key].transactions[idx];
   const oldCat = txn.category;
   if (oldCat !== newCat) saveCorrectionFeedback(txn.description, oldCat, newCat);
   txn.category = newCat;
-  txn.sheet = houseSheetCats.includes(newCat) ? 'House' : workSheetCats.includes(newCat) ? 'Work' : 'Personal';
-  saveAllData(data);
+  txn.sheet = newSheet;
+  // Rebuild summary
+  rebuildMonthSummary(data[key]);
+  await saveAllData(data, key);
+  // Refresh Excel values panel without re-rendering table
   viewMonthDetailFromData(key, data);
+}
+
+async function openDetailSplitModal(key, idx) {
+  const data = await loadAllData();
+  const txns = data[key]?.transactions || [];
+  const r = txns[idx];
+  if (!r) return;
+
+  // Store key for confirmDetailSplit
+  window._detailSplitKey = key;
+  window._detailSplitIdx = idx;
+
+  const total = Math.abs(r.amount);
+  const cats = getAllCatsSync();
+  const optionsHtml = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  const defaultCatB = r.category === 'Wifi' ? '2degrees Mobile' : r.category === '2degrees Mobile' ? 'Wifi' : cats[0];
+
+  document.getElementById('split-modal-desc').textContent = `${r.description} — $${total.toFixed(2)} on ${r.date} (${monthLabel(key)})`;
+  document.getElementById('split-cat-a').innerHTML = optionsHtml;
+  document.getElementById('split-cat-b').innerHTML = optionsHtml;
+  document.getElementById('split-cat-a').value = r.category;
+  document.getElementById('split-cat-b').value = defaultCatB;
+  document.getElementById('split-amount-a').value = (total / 2).toFixed(2);
+  document.getElementById('split-amount-b').value = (total / 2).toFixed(2);
+  document.getElementById('split-error').style.display = 'none';
+
+  // Override confirmSplit for history context
+  window._splitContext = 'history';
+  document.getElementById('split-modal').style.display = 'flex';
+}
+
+async function unsplitDetailTransaction(key, originalIdx) {
+  const data = await loadAllData();
+  if (!data[key]) return;
+  const txns = data[key].transactions;
+  const parts = txns.filter(r => r._splitFrom === originalIdx);
+  if (!parts.length) return;
+  const original = { ...parts[0] };
+  original.amount = parts.reduce((s, r) => s + r.amount, 0);
+  delete original._splitFrom;
+  const firstIdx = txns.findIndex(r => r._splitFrom === originalIdx);
+  txns.splice(firstIdx, parts.length, original);
+  rebuildMonthSummary(data[key]);
+  await saveAllData(data, key);
+  showCorrectionToast('Transaction unsplit');
+  await renderDetailTxnTable(key);
+  viewMonthDetailFromData(key, data);
+}
+
+function rebuildMonthSummary(monthData) {
+  // Recalculate summary from transactions after category edits
+  const txns = monthData.transactions || [];
+  const sumCatT = (cat) => txns.filter(t => t.category === cat).reduce((s,t) => s+Math.abs(t.amount), 0);
+  const s = monthData.summary;
+  s.houseTotal = txns.filter(t=>t.sheet==='House').reduce((s,t)=>s+Math.abs(t.amount),0);
+  s.workTotal = txns.filter(t=>t.sheet==='Work').reduce((s,t)=>s+Math.abs(t.amount),0);
+  s.tonyContrib = sumCatT('Brother Transfer');
+  s.peterContrib = s.houseTotal - s.tonyContrib;
+  s.pay = sumCatT('Take Home Pay');
+  s.investTotal = sumCatT('Sharesies')+sumCatT('Hatch')+sumCatT('KiwiSaver')+sumCatT('ASB Investment');
+  s.personalSpend = txns.filter(t=>t.sheet==='Personal'&&!['Take Home Pay','Brother Transfer','Work Reimbursement','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(t.category)).reduce((s,t)=>s+Math.abs(t.amount),0);
+  s.houseShare = s.houseTotal / 2;
+  s.savings = s.pay - s.personalSpend - s.houseShare;
+  s.netPosition = s.savings + s.investTotal;
+  // Update categories map
+  getAllCatsSync().forEach(cat => { s.categories[cat] = sumCatT(cat); });
 }
 
 async function viewMonthDetailFromData(key, data) {
@@ -2361,8 +2517,17 @@ function updateSplitA() {
   document.getElementById('split-amount-a').value = Math.max(0, total - b).toFixed(2);
 }
 
-function confirmSplit() {
-  const r = categorisedResults[_splitIdx];
+async function confirmSplit() {
+  const isHistory = window._splitContext === 'history';
+  const idx = isHistory ? window._detailSplitIdx : _splitIdx;
+  const key = isHistory ? window._detailSplitKey : null;
+
+  const txns = isHistory
+    ? (await loadAllData())[key]?.transactions || []
+    : categorisedResults;
+  const r = txns[idx];
+  if (!r) return;
+
   const total = Math.abs(r.amount);
   const amtA = parseFloat(document.getElementById('split-amount-a').value);
   const amtB = parseFloat(document.getElementById('split-amount-b').value);
@@ -2382,13 +2547,26 @@ function confirmSplit() {
   const houseCats = getHouseCatsSync();
   const workCats = getWorkCatsSync();
   const getSheet = (cat) => houseCats.includes(cat) ? 'House' : workCats.includes(cat) ? 'Work' : 'Personal';
-  const splitA = { ...r, amount: amtA, category: catA, sheet: getSheet(catA), _splitFrom: _splitIdx };
-  const splitB = { ...r, amount: amtB, category: catB, sheet: getSheet(catB), _splitFrom: _splitIdx };
-  categorisedResults.splice(_splitIdx, 1, splitA, splitB);
+  const splitA = { ...r, amount: amtA, category: catA, sheet: getSheet(catA), _splitFrom: idx };
+  const splitB = { ...r, amount: amtB, category: catB, sheet: getSheet(catB), _splitFrom: idx };
 
-  closeSplitModal();
-  buildStep4();
-  showCorrectionToast(`Split into $${amtA.toFixed(2)} ${catA} + $${amtB.toFixed(2)} ${catB}`);
+  if (isHistory) {
+    const data = await loadAllData();
+    if (!data[key]) return;
+    data[key].transactions.splice(idx, 1, splitA, splitB);
+    rebuildMonthSummary(data[key]);
+    await saveAllData(data, key);
+    closeSplitModal();
+    showCorrectionToast(`Split into $${amtA.toFixed(2)} ${catA} + $${amtB.toFixed(2)} ${catB}`);
+    await renderDetailTxnTable(key);
+    viewMonthDetailFromData(key, data);
+  } else {
+    categorisedResults.splice(idx, 1, splitA, splitB);
+    closeSplitModal();
+    buildStep4();
+    showCorrectionToast(`Split into $${amtA.toFixed(2)} ${catA} + $${amtB.toFixed(2)} ${catB}`);
+  }
+  window._splitContext = null;
 }
 
 function unsplitTransaction(originalIdx) {
@@ -2877,9 +3055,10 @@ Object.assign(window, {
   updateResultCat,
   selectCatMonth, selectHouseCatMonth, selectPersonalCatMonth,
   switchDashTab, toggleReimb, saveUsage, loadUsageForMonth,
-  deleteMonth, closeDetail, viewMonthDetail, updateDetailCat,
+  deleteMonth, closeDetail, viewMonthDetail, updateDetailCat, updateDetailCatInPlace,
+  openDetailSplitModal, unsplitDetailTransaction,
   selectName, confirmOtherName, forgetUser,
-  renderDashboard, renderHistory, renderIOU, renderIOUMonth, markIOUPaid,
+  renderDashboard, refreshDashboard, renderHistory, refreshHistory, renderIOU, refreshIOU, renderIOUMonth, markIOUPaid,
   addCategory, removeCategory, removeCorrection, clearCorrections,
   openSplitModal, closeSplitModal, updateSplitA, updateSplitB, confirmSplit, unsplitTransaction
 });
