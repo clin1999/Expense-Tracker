@@ -534,20 +534,40 @@ select:focus{outline:none;border-color:var(--accent)}
 
 <div id="correction-toast"></div>
 
-<!-- WELCOME OVERLAY -->
-<div id="welcome-overlay">
-  <div class="welcome-box">
-    <div style="font-size:2rem;margin-bottom:.75rem">🏠</div>
-    <h2>15 Pakaraka Drive</h2>
-    <p>Who's using the app? We'll remember you next time.</p>
-    <div class="name-btns">
-      <button class="name-btn" onclick="selectName('Peter')">Peter</button>
-      <button class="name-btn" onclick="selectName('Tony')">Tony</button>
+<!-- LOGIN SCREEN -->
+<div id="login-screen" style="display:none;position:fixed;inset:0;z-index:2000;background:var(--bg);align-items:center;justify-content:center;padding:1.5rem">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2.5rem 2rem;max-width:380px;width:100%;text-align:center">
+    <div style="font-size:2.25rem;margin-bottom:.75rem">🏠</div>
+    <h2 style="font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:600;letter-spacing:-0.02em;margin-bottom:6px">15 Pakaraka Drive</h2>
+    <p style="font-size:.875rem;color:var(--text2);margin-bottom:1.75rem">Sign in to access your expense tracker</p>
+
+    <div style="text-align:left;margin-bottom:1rem">
+      <label style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);display:block;margin-bottom:.4rem">Email</label>
+      <input type="email" id="login-email" placeholder="your@email.com"
+        style="width:100%;padding:.6rem .85rem;border:1px solid var(--border2);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.9rem;background:var(--surface2);color:var(--text);box-sizing:border-box"
+        onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
     </div>
-    <div class="other-name-row">
-      <input type="text" id="other-name-input" placeholder="Someone else…" maxlength="20" onkeydown="if(event.key==='Enter')confirmOtherName()">
-      <button class="btn btn-secondary" onclick="confirmOtherName()">Go →</button>
+
+    <div style="text-align:left;margin-bottom:1rem">
+      <label style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);display:block;margin-bottom:.4rem">Password</label>
+      <div style="position:relative">
+        <input type="password" id="login-password" placeholder="••••••••"
+          style="width:100%;padding:.6rem .85rem;border:1px solid var(--border2);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.9rem;background:var(--surface2);color:var(--text);box-sizing:border-box"
+          onkeydown="if(event.key==='Enter')doLogin()">
+        <button onclick="togglePasswordVisibility()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:.8rem">👁</button>
+      </div>
     </div>
+
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:1.25rem;text-align:left">
+      <input type="checkbox" id="remember-me" checked style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer">
+      <label for="remember-me" style="font-size:.875rem;color:var(--text2);cursor:pointer">Remember me on this device</label>
+    </div>
+
+    <button onclick="doLogin()" id="login-btn" class="btn btn-primary" style="width:100%;padding:.75rem;font-size:.8rem;justify-content:center">
+      Sign in
+    </button>
+
+    <div id="login-error" style="display:none;margin-top:.85rem;padding:.6rem 1rem;background:var(--red-l);border-radius:6px;font-size:.8rem;color:var(--red);font-family:'DM Mono',monospace"></div>
   </div>
 </div>
 
@@ -560,7 +580,7 @@ select:focus{outline:none;border-color:var(--accent)}
     <button class="nav-tab" onclick="showPage('iou')">IOU</button>
     <button class="nav-tab" onclick="showPage('settings')">Settings</button>
   </div>
-  <div id="user-pill" onclick="forgetUser()" title="Click to switch user">
+  <div id="user-pill" onclick="doSignOut()" title="Sign out" style="cursor:pointer">
     <div class="user-avatar" id="user-avatar">?</div>
     <span id="user-name-display">—</span>
   </div>
@@ -1105,6 +1125,7 @@ select:focus{outline:none;border-color:var(--accent)}
 // ═══════════════════════════
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, browserLocalPersistence, browserSessionPersistence, setPersistence } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBHhISJ_aoBxnPOQRm2_0QQaNDFwXpWxGw",
@@ -1118,6 +1139,13 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
+
+// User email → namespace mapping
+const EMAIL_USER_MAP = {
+  'changchien1999@gmail.com': 'peter',
+  'thsiang@gmail.com': 'tony'
+};
 
 // ═══════════════════════════
 // DATA LAYER — Firestore (user-namespaced)
@@ -1126,10 +1154,6 @@ const db = getFirestore(app);
 // In-memory cache per user
 let _cache = {}; // { peter: {...months}, tony: {...months} }
 let _correctionsCache = null;
-
-function getUserId() {
-  return (getCurrentUser() || 'peter').toLowerCase();
-}
 
 function userMonthsRef(userId) {
   return collection(db, 'users', userId || getUserId(), 'months');
@@ -2429,19 +2453,23 @@ function showCorrectionToast(msg) {
 }
 
 // ═══════════════════════════
-// USER IDENTITY
+// AUTH — Firebase Authentication
 // ═══════════════════════════
-const USER_KEY = 'pakaraka_user';
+let _currentAuthUser = null;
 
-function getCurrentUser() {
-  return localStorage.getItem(USER_KEY) || '';
+function getUserId() {
+  if (_currentAuthUser) {
+    return EMAIL_USER_MAP[_currentAuthUser.email] || _currentAuthUser.email.split('@')[0].toLowerCase();
+  }
+  return 'peter';
 }
 
-function setCurrentUser(name) {
-  localStorage.setItem(USER_KEY, name);
-  updateUserPill(name);
-  document.getElementById('welcome-overlay').classList.add('hidden');
-  renderDashboard();
+function getCurrentUser() {
+  if (_currentAuthUser) {
+    const uid = EMAIL_USER_MAP[_currentAuthUser.email];
+    return uid ? uid.charAt(0).toUpperCase() + uid.slice(1) : _currentAuthUser.email;
+  }
+  return '';
 }
 
 function updateUserPill(name) {
@@ -2449,23 +2477,75 @@ function updateUserPill(name) {
   document.getElementById('user-avatar').textContent = name ? name[0].toUpperCase() : '?';
 }
 
-function selectName(name) {
-  document.querySelectorAll('.name-btn').forEach(b => b.classList.remove('selected'));
-  event.target.classList.add('selected');
-  setTimeout(() => setCurrentUser(name), 200);
+function showLoginScreen() {
+  const el = document.getElementById('login-screen');
+  el.style.display = 'flex';
 }
 
-function confirmOtherName() {
-  const val = document.getElementById('other-name-input').value.trim();
-  if (val) setCurrentUser(val);
+function hideLoginScreen() {
+  const el = document.getElementById('login-screen');
+  el.style.display = 'none';
 }
 
-function forgetUser() {
-  if (!confirm('Switch user? Your saved data will stay — just your name will be cleared.')) return;
-  localStorage.removeItem(USER_KEY);
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const rememberMe = document.getElementById('remember-me').checked;
+  const btn = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+
+  if (!email || !password) {
+    errEl.textContent = 'Please enter your email and password.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  errEl.style.display = 'none';
+
+  try {
+    // Set persistence based on remember me
+    await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+    await signInWithEmailAndPassword(auth, email, password);
+    // onAuthStateChanged will handle the rest
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
+    const messages = {
+      'auth/invalid-credential': 'Incorrect email or password.',
+      'auth/user-not-found': 'No account found with this email.',
+      'auth/wrong-password': 'Incorrect password.',
+      'auth/too-many-requests': 'Too many attempts. Please try again later.',
+      'auth/invalid-email': 'Please enter a valid email address.',
+    };
+    errEl.textContent = messages[e.code] || 'Sign in failed. Please try again.';
+    errEl.style.display = 'block';
+  }
+}
+
+async function doSignOut() {
+  if (!confirm('Sign out?')) return;
+  _cache = {};
+  _currentAuthUser = null;
+  await signOut(auth);
   updateUserPill('');
-  document.getElementById('welcome-overlay').classList.remove('hidden');
+  showLoginScreen();
 }
+
+function togglePasswordVisibility() {
+  const input = document.getElementById('login-password');
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+// Legacy stubs for any remaining references
+function selectName(n) {}
+function confirmOtherName() {}
+function forgetUser() { doSignOut(); }
+
+// ═══════════════════════════
+// INIT — Auth state listener
+// ═══════════════════════════
 
 // ═══════════════════════════
 // SPLIT TRANSACTION
@@ -3058,23 +3138,34 @@ Object.assign(window, {
   deleteMonth, closeDetail, viewMonthDetail, updateDetailCat, updateDetailCatInPlace,
   openDetailSplitModal, unsplitDetailTransaction,
   selectName, confirmOtherName, forgetUser,
+  doLogin, doSignOut, togglePasswordVisibility,
   renderDashboard, refreshDashboard, renderHistory, refreshHistory, renderIOU, refreshIOU, renderIOUMonth, markIOUPaid,
   addCategory, removeCategory, removeCorrection, clearCorrections,
   openSplitModal, closeSplitModal, updateSplitA, updateSplitB, confirmSplit, unsplitTransaction
 });
 
 // ═══════════════════════════
-// INIT
+// INIT — Auth state listener
 // ═══════════════════════════
-(async () => {
-  const savedUser = getCurrentUser();
-  if (savedUser) {
-    document.getElementById('welcome-overlay').classList.add('hidden');
-    updateUserPill(savedUser);
+showLoginScreen(); // Show login by default
+
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    _currentAuthUser = user;
+    const name = getCurrentUser();
+    updateUserPill(name);
+    hideLoginScreen();
+    // Reset button state
+    const btn = document.getElementById('login-btn');
+    if (btn) { btn.disabled = false; btn.textContent = 'Sign in'; }
+    await loadCategories();
+    await renderDashboard();
+  } else {
+    _currentAuthUser = null;
+    _cache = {};
+    showLoginScreen();
   }
-  await loadCategories(); // preload so dropdowns work immediately
-  await renderDashboard();
-})();
+});
 </script>
 </body>
 </html>
