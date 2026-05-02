@@ -596,6 +596,7 @@ select:focus{outline:none;border-color:var(--accent)}
     <button class="nav-tab" onclick="showPage('categorise')">Categorise</button>
     <button class="nav-tab" onclick="showPage('history')">History</button>
     <button class="nav-tab" onclick="showPage('iou')">IOU</button>
+    <button class="nav-tab" onclick="showPage('formulae')">Formulae</button>
     <button class="nav-tab" onclick="showPage('settings')">Settings</button>
   </div>
   <div id="user-pill" onclick="doSignOut()" title="Sign out" style="cursor:pointer">
@@ -1105,6 +1106,31 @@ select:focus{outline:none;border-color:var(--accent)}
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════
+     FORMULAE PAGE
+═══════════════════════════════════════════════ -->
+<div id="page-formulae" class="page">
+  <div class="page-header">
+    <h1>Formulae Reference</h1>
+    <p>How dashboard and history values are calculated</p>
+  </div>
+
+  <div class="card">
+    <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;margin-bottom:.5rem">Core monthly calculations</div>
+    <div id="formulae-core-table" style="overflow:auto"></div>
+  </div>
+
+  <div class="card">
+    <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;margin-bottom:.5rem">Dashboard signal rules (insights)</div>
+    <div id="formulae-signal-table" style="overflow:auto"></div>
+  </div>
+
+  <div class="card">
+    <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;margin-bottom:.5rem">Current config (live)</div>
+    <div id="formulae-live-meta" style="font-size:.82rem;color:var(--text2);line-height:1.6"></div>
+  </div>
+</div>
+
 <!-- SPLIT MODAL -->
 <div id="split-modal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.35);display:none;align-items:center;justify-content:center;padding:1rem">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.75rem;max-width:420px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.12)">
@@ -1325,12 +1351,13 @@ async function showPage(p) {
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
-  const tabs = ['dashboard','categorise','history','iou','settings'];
+  const tabs = ['dashboard','categorise','history','iou','formulae','settings'];
   document.querySelectorAll('.nav-tab')[tabs.indexOf(p)].classList.add('active');
   if (p === 'dashboard') await renderDashboard();
   if (p === 'history') await renderHistory();
   if (p === 'settings') await renderSettings();
   if (p === 'iou') await renderIOU();
+  if (p === 'formulae') renderFormulaeReference();
 }
 
 function switchInner(s) {
@@ -1576,13 +1603,32 @@ function getPersonalCatsSync() {
   return _catsCache.personal;
 }
 
+const PERSONAL_STACK_EXCLUDED = ['Take Home Pay','Brother Transfer','Work Reimbursement'];
+const INVESTMENT_CAT_NAMES = ['Sharesies','Hatch','KiwiSaver','ASB Investment'];
+const PERSONAL_SPEND_EXCLUDED = [...PERSONAL_STACK_EXCLUDED, ...INVESTMENT_CAT_NAMES];
+const INSIGHT_RULES = {
+  house: {
+    lookbackMonths: 3,
+    maxSignals: 4,
+    mom: { minCurrent: 20, minPrev: 15, increaseMultiplier: 1.3, minIncrease: 30 },
+    avg: { minCurrent: 20, minAvg: 20, increaseMultiplier: 1.4, minIncrease: 30 },
+    share: { minCurrent: 45, minShare: 0.32 }
+  },
+  personal: {
+    lookbackMonths: 3,
+    maxSignals: 4,
+    mom: { minCurrent: 18, minPrev: 12, increaseMultiplier: 1.35, minIncrease: 28 },
+    avg: { minCurrent: 18, minAvg: 15, increaseMultiplier: 1.45, minIncrease: 28 },
+    share: { minCurrent: 40, minShare: 0.38 }
+  }
+};
+
 /** Personal categories shown as stacked bars (excludes pay / transfers / reimbursements only). */
 function getPersonalStackCatNames() {
-  const skip = new Set(['Take Home Pay','Brother Transfer','Work Reimbursement']);
+  const skip = new Set(PERSONAL_STACK_EXCLUDED);
   return getPersonalCatsSync().filter(c => !skip.has(c));
 }
 
-const INVESTMENT_CAT_NAMES = ['Sharesies','Hatch','KiwiSaver','ASB Investment'];
 function getWorkCatsSync() {
   if (!_catsCache) return DEFAULT_WORK_CATS;
   return _catsCache.work || DEFAULT_WORK_CATS;
@@ -1621,7 +1667,7 @@ function rebuildStep4Summary() {
   const houseTotal = categorisedResults.filter(r=>r.sheet==='House').reduce((s,r)=>s+Math.abs(r.amount),0);
   const workTotal = categorisedResults.filter(r=>r.sheet==='Work').reduce((s,r)=>s+Math.abs(r.amount),0);
   const investTotal = sumCat('Sharesies')+sumCat('Hatch')+sumCat('KiwiSaver')+sumCat('ASB Investment');
-  const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!['Take Home Pay','Brother Transfer','Work Reimbursement','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
+  const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!PERSONAL_SPEND_EXCLUDED.includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const houseShare = houseTotal / 2;
   const savings = pay - personalSpend - houseShare;
   const netPosition = savings + investTotal;
@@ -1645,7 +1691,7 @@ function buildStep4() {
   const houseTotal = categorisedResults.filter(r=>r.sheet==='House').reduce((s,r)=>s+Math.abs(r.amount),0);
   const workTotal = categorisedResults.filter(r=>r.sheet==='Work').reduce((s,r)=>s+Math.abs(r.amount),0);
   const investTotal = sumCat('Sharesies')+sumCat('Hatch')+sumCat('KiwiSaver')+sumCat('ASB Investment');
-  const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!['Take Home Pay','Brother Transfer','Work Reimbursement','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
+  const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!PERSONAL_SPEND_EXCLUDED.includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const houseShare = houseTotal / 2;
   const savings = pay - personalSpend - houseShare;
   const netPosition = savings + investTotal;
@@ -1773,7 +1819,7 @@ async function _doSave() {
     travel=sumCat('Travel'), water=sumCat('Water'),
     council=sumCat('Council Rates'), insurance=sumCat('Insurance');
   const investTotal = sharesies+hatch+ks+asbInv;
-  const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!['Take Home Pay','Brother Transfer','Work Reimbursement','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
+  const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!PERSONAL_SPEND_EXCLUDED.includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const workTotal = categorisedResults.filter(r=>r.sheet==='Work').reduce((s,r)=>s+Math.abs(r.amount),0);
   const houseShareSave = houseTotal / 2;
   const savings = pay - personalSpend - houseShareSave;
@@ -1832,6 +1878,7 @@ function renderInsightPanel(containerId, title, lines) {
 
 function computeHouseInsights(keys, data) {
   if (keys.length < 1) return [];
+  const cfg = INSIGHT_RULES.house;
   const latestK = keys[keys.length - 1];
   const prevK = keys.length > 1 ? keys[keys.length - 2] : null;
   const houseNames = getHouseCatsSync();
@@ -1843,21 +1890,21 @@ function computeHouseInsights(keys, data) {
   for (const cat of houseNames) {
     const cur = catsL[cat] || 0;
     const prev = prevK ? (data[prevK].summary.categories?.[cat] || 0) : 0;
-    if (cur < 20 || prev < 15) continue;
-    if (cur > prev * 1.3 && (cur - prev) >= 30) {
+    if (cur < cfg.mom.minCurrent || prev < cfg.mom.minPrev) continue;
+    if (cur > prev * cfg.mom.increaseMultiplier && (cur - prev) >= cfg.mom.minIncrease) {
       const pct = ((cur - prev) / prev * 100).toFixed(0);
       lines.push({ p: 0, t: `<strong>${cat}</strong> jumped about ${pct}% vs last month ($${prev.toFixed(0)} → $${cur.toFixed(0)}).` });
       used.add(cat);
     }
   }
   const idx = keys.indexOf(latestK);
-  const priorKeys = keys.slice(Math.max(0, idx - 3), idx);
+  const priorKeys = keys.slice(Math.max(0, idx - cfg.lookbackMonths), idx);
   for (const cat of houseNames) {
     if (used.has(cat)) continue;
     const cur = catsL[cat] || 0;
-    if (cur < 20 || priorKeys.length < 1) continue;
+    if (cur < cfg.avg.minCurrent || priorKeys.length < 1) continue;
     const avg = priorKeys.reduce((s, k) => s + (data[k].summary.categories?.[cat] || 0), 0) / priorKeys.length;
-    if (avg >= 20 && cur > avg * 1.4 && (cur - avg) >= 30) {
+    if (avg >= cfg.avg.minAvg && cur > avg * cfg.avg.increaseMultiplier && (cur - avg) >= cfg.avg.minIncrease) {
       lines.push({ p: 1, t: `<strong>${cat}</strong> is well above your recent ${priorKeys.length}-month average (~$${avg.toFixed(0)} → $${cur.toFixed(0)}).` });
       used.add(cat);
     }
@@ -1865,16 +1912,17 @@ function computeHouseInsights(keys, data) {
   for (const cat of houseNames) {
     if (used.has(cat)) continue;
     const cur = catsL[cat] || 0;
-    if (totalH > 0 && cur >= 45 && cur / totalH >= 0.32) {
+    if (totalH > 0 && cur >= cfg.share.minCurrent && cur / totalH >= cfg.share.minShare) {
       lines.push({ p: 2, t: `<strong>${cat}</strong> is a large share of house spend (${(cur / totalH * 100).toFixed(0)}% of $${totalH.toFixed(0)}).` });
       used.add(cat);
     }
   }
-  return lines.sort((a, b) => a.p - b.p).map(x => x.t).slice(0, 4);
+  return lines.sort((a, b) => a.p - b.p).map(x => x.t).slice(0, cfg.maxSignals);
 }
 
 function computePersonalInsights(keys, data) {
   if (keys.length < 1) return [];
+  const cfg = INSIGHT_RULES.personal;
   const latestK = keys[keys.length - 1];
   const prevK = keys.length > 1 ? keys[keys.length - 2] : null;
   const stackNames = getPersonalStackCatNames();
@@ -1887,8 +1935,8 @@ function computePersonalInsights(keys, data) {
   for (const cat of stackNames) {
     const cur = catsL[cat] || 0;
     const prev = prevK ? (data[prevK].summary.categories?.[cat] || 0) : 0;
-    if (cur < 18 || prev < 12) continue;
-    if (cur > prev * 1.35 && (cur - prev) >= 28) {
+    if (cur < cfg.mom.minCurrent || prev < cfg.mom.minPrev) continue;
+    if (cur > prev * cfg.mom.increaseMultiplier && (cur - prev) >= cfg.mom.minIncrease) {
       const pct = ((cur - prev) / prev * 100).toFixed(0);
       const hint = investSet.has(cat) ? ' (investment contributions)' : '';
       lines.push({ p: 0, t: `<strong>${cat}</strong> is up ~${pct}% vs last month ($${prev.toFixed(0)} → $${cur.toFixed(0)})${hint}.` });
@@ -1896,13 +1944,13 @@ function computePersonalInsights(keys, data) {
     }
   }
   const idx = keys.indexOf(latestK);
-  const priorKeys = keys.slice(Math.max(0, idx - 3), idx);
+  const priorKeys = keys.slice(Math.max(0, idx - cfg.lookbackMonths), idx);
   for (const cat of stackNames) {
     if (used.has(cat)) continue;
     const cur = catsL[cat] || 0;
-    if (cur < 18 || priorKeys.length < 1) continue;
+    if (cur < cfg.avg.minCurrent || priorKeys.length < 1) continue;
     const avg = priorKeys.reduce((s, k) => s + (data[k].summary.categories?.[cat] || 0), 0) / priorKeys.length;
-    if (avg >= 15 && cur > avg * 1.45 && (cur - avg) >= 28) {
+    if (avg >= cfg.avg.minAvg && cur > avg * cfg.avg.increaseMultiplier && (cur - avg) >= cfg.avg.minIncrease) {
       lines.push({ p: 1, t: `<strong>${cat}</strong> is higher than your recent average ($${avg.toFixed(0)} → $${cur.toFixed(0)}).` });
       used.add(cat);
     }
@@ -1911,12 +1959,57 @@ function computePersonalInsights(keys, data) {
     if (used.has(cat)) continue;
     const cur = catsL[cat] || 0;
     if (investSet.has(cat)) continue;
-    if (spendTotal > 0 && cur >= 40 && cur / spendTotal >= 0.38) {
+    if (spendTotal > 0 && cur >= cfg.share.minCurrent && cur / spendTotal >= cfg.share.minShare) {
       lines.push({ p: 2, t: `<strong>${cat}</strong> is a large share of true expenses (${(cur / spendTotal * 100).toFixed(0)}% of $${spendTotal.toFixed(0)}).` });
       used.add(cat);
     }
   }
-  return lines.sort((a, b) => a.p - b.p).map(x => x.t).slice(0, 4);
+  return lines.sort((a, b) => a.p - b.p).map(x => x.t).slice(0, cfg.maxSignals);
+}
+
+function renderFormulaeReference() {
+  const coreRows = [
+    ['House total', 'sum(|amount| where sheet = House)', 'Absolute values are used.'],
+    ['Tony contribution', 'sum(|amount| where category = Brother Transfer)', 'Tracks money Tony paid in.'],
+    ['Peter contribution', 'houseTotal - tonyContrib', 'What Peter effectively covered.'],
+    ['House share (50/50)', 'houseTotal / 2', 'Target split per person.'],
+    ['Take home pay', 'sum(|amount| where category = Take Home Pay)', 'Income from salary/pay.'],
+    ['Investment total', INVESTMENT_CAT_NAMES.join(' + '), 'From category totals for the month.'],
+    ['Personal spend (true expenses)', `sum(|amount| where sheet = Personal and category not in [${PERSONAL_SPEND_EXCLUDED.join(', ')}])`, 'Excludes income, transfers, reimbursements, and investments.'],
+    ['Savings', 'pay - personalSpend - houseShare', 'Core savings measure used in dashboard.'],
+    ['Net position', 'savings + investTotal', 'Savings after including investments.'],
+    ['Category total (any category C)', 'sum(|amount| where category = C)', 'Used by charts and exports.']
+  ];
+  document.getElementById('formulae-core-table').innerHTML = `<table class="export-table"><thead>
+    <tr style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">
+      <td style="padding:6px 10px">Metric</td><td style="padding:6px 10px">Formula</td><td style="padding:6px 10px">Notes</td>
+    </tr></thead><tbody>${
+      coreRows.map(r => `<tr><td style="padding:9px 10px;font-weight:500">${r[0]}</td><td class="col-note" style="padding:9px 10px">${r[1]}</td><td class="col-note" style="padding:9px 10px">${r[2]}</td></tr>`).join('')
+    }</tbody></table>`;
+
+  const h = INSIGHT_RULES.house;
+  const p = INSIGHT_RULES.personal;
+  const signalRows = [
+    ['House month-over-month jump', `cur >= ${h.mom.minCurrent}, prev >= ${h.mom.minPrev}, cur > prev x ${h.mom.increaseMultiplier}, delta >= ${h.mom.minIncrease}`, 'Flags sudden increases.'],
+    ['House vs recent average', `lookback=${h.lookbackMonths}, avg >= ${h.avg.minAvg}, cur > avg x ${h.avg.increaseMultiplier}, delta >= ${h.avg.minIncrease}`, 'Flags abnormal highs vs baseline.'],
+    ['House large share', `cur >= ${h.share.minCurrent}, cur/houseTotal >= ${(h.share.minShare * 100).toFixed(0)}%`, 'Highlights concentration in one category.'],
+    ['Personal month-over-month jump', `cur >= ${p.mom.minCurrent}, prev >= ${p.mom.minPrev}, cur > prev x ${p.mom.increaseMultiplier}, delta >= ${p.mom.minIncrease}`, 'Flags sudden increases.'],
+    ['Personal vs recent average', `lookback=${p.lookbackMonths}, avg >= ${p.avg.minAvg}, cur > avg x ${p.avg.increaseMultiplier}, delta >= ${p.avg.minIncrease}`, 'Flags abnormal highs vs baseline.'],
+    ['Personal large share', `cur >= ${p.share.minCurrent}, cur/personalSpend >= ${(p.share.minShare * 100).toFixed(0)}% (non-investment only)`, 'Highlights concentration in discretionary spend.']
+  ];
+  document.getElementById('formulae-signal-table').innerHTML = `<table class="export-table"><thead>
+    <tr style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">
+      <td style="padding:6px 10px">Signal</td><td style="padding:6px 10px">Rule (live values)</td><td style="padding:6px 10px">Purpose</td>
+    </tr></thead><tbody>${
+      signalRows.map(r => `<tr><td style="padding:9px 10px;font-weight:500">${r[0]}</td><td class="col-note" style="padding:9px 10px">${r[1]}</td><td class="col-note" style="padding:9px 10px">${r[2]}</td></tr>`).join('')
+    }</tbody></table>`;
+
+  document.getElementById('formulae-live-meta').innerHTML = `
+    <div><strong>Personal stack excludes:</strong> ${PERSONAL_STACK_EXCLUDED.join(', ')}</div>
+    <div><strong>Personal spend excludes:</strong> ${PERSONAL_SPEND_EXCLUDED.join(', ')}</div>
+    <div><strong>Investment categories:</strong> ${INVESTMENT_CAT_NAMES.join(', ')}</div>
+    <div><strong>Max insights shown:</strong> House ${h.maxSignals}, Personal ${p.maxSignals}</div>
+  `;
 }
 
 function destroyChart(id) {
@@ -2211,7 +2304,7 @@ function renderHouseCatBars(key, data) {
 function renderPersonalCatBars(key, data) {
   const personalCatNames = [...(_catsCache?.personal||DEFAULT_PERSONAL_CATS)];
   const cats = data[key].summary.categories || {};
-  const skipCats = ['Take Home Pay','Brother Transfer','Work Reimbursement'];
+  const skipCats = PERSONAL_STACK_EXCLUDED;
   const filtered = personalCatNames.filter(n=>!skipCats.includes(n)).map(n=>[n,cats[n]||0]).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
   const max = filtered[0]?.[1]||1;
   const colors = ['#8b4a1c','#6b3d7a','#1a3d6b','#a02828','#2d4a6b','#7a4f10','#0f5a4a'];
@@ -2370,14 +2463,14 @@ async function renderHistory() {
   listEl.innerHTML = `<div class="months-list">${keys.map(k=>{    const d = data[k];
     const s = d.summary;
     const savedAtStr = d.savedAt ? new Date(d.savedAt).toLocaleDateString('en-NZ', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
-    return `<div class="month-entry" onclick="viewMonthDetail('${k}')">
+    return `<div class="month-entry" data-month-key="${k}" onclick="viewMonthDetail('${k}')">
       <div>
         <div class="month-entry-name">${d.label} ${d.savedBy ? `<span class="entry-tag ${d.savedBy.toLowerCase()==='peter'?'tag-peter':d.savedBy.toLowerCase()==='tony'?'tag-tony':'tag-other'}">${d.savedBy}</span>` : ''}</div>
         <div class="month-entry-meta">House $${s.houseTotal.toFixed(0)} · Personal $${s.personalSpend.toFixed(0)} · ${s.workTotal>0?`Work $${s.workTotal.toFixed(0)} · `:''}Savings $${s.savings.toFixed(0)} · ${d.transactions.length} txns${savedAtStr ? ' · saved '+savedAtStr : ''}</div>
       </div>
       <div class="month-entry-actions">
-        <button class="btn btn-secondary" style="padding:.35rem .75rem;font-size:.65rem" onclick="event.stopPropagation();viewMonthDetail('${k}')">View →</button>
-        <button class="btn btn-danger" style="padding:.35rem .75rem;font-size:.65rem" onclick="event.stopPropagation();deleteMonth('${k}')">Delete</button>
+        <button type="button" class="btn btn-secondary" style="padding:.35rem .75rem;font-size:.65rem" onclick="event.stopPropagation();viewMonthDetail('${k}')">View →</button>
+        <button type="button" class="btn btn-danger" style="padding:.35rem .75rem;font-size:.65rem" onclick="event.stopPropagation();deleteMonth('${k}')">Delete</button>
       </div>
     </div>`;
   }).join('')}</div>`;
@@ -2385,12 +2478,10 @@ async function renderHistory() {
 
 async function deleteMonth(key) {
   if (!confirm(`Delete data for ${monthLabel(key)}? This cannot be undone.`)) return;
-  const data = await loadAllData();
-  delete data[key];
-  saveAllData(data);
+  await deleteMonthFromDB(key);
   closeDetail();
-  renderHistory();
-  renderDashboard();
+  await renderHistory();
+  await renderDashboard();
 }
 
 function closeDetail() {
@@ -2405,9 +2496,10 @@ async function viewMonthDetail(key) {
   const s = d.summary;
   const cats = s.categories;
 
-  // Highlight selected row
+  // Highlight selected row (do not use global event after await — it is unreliable)
   document.querySelectorAll('.month-entry').forEach(e => e.style.background = '');
-  event.currentTarget.style.background = 'var(--accent-l)';
+  const row = document.querySelector(`.month-entry[data-month-key="${CSS.escape(key)}"]`);
+  if (row) row.style.background = 'var(--accent-l)';
 
   // Title
   document.getElementById('detail-title').innerHTML = `${d.label} <span style="font-family:'DM Mono',monospace;font-size:.72rem;font-weight:400;color:var(--text3)">Excel values</span>`;
@@ -2475,10 +2567,12 @@ async function viewMonthDetail(key) {
   document.getElementById('history-detail').dataset.key = key;
   await renderDetailTxnTable(key);
 
-  // Show panel and scroll to it
   const panel = document.getElementById('history-detail');
   panel.style.display = 'block';
-  setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  // Single instant scroll after layout; smooth scroll + async paint caused repeated/janky scrolling on mobile
+  requestAnimationFrame(() => {
+    panel.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+  });
 }
 
 async function renderDetailTxnTable(key) {
@@ -2600,7 +2694,7 @@ function rebuildMonthSummary(monthData) {
   s.peterContrib = s.houseTotal - s.tonyContrib;
   s.pay = sumCatT('Take Home Pay');
   s.investTotal = sumCatT('Sharesies')+sumCatT('Hatch')+sumCatT('KiwiSaver')+sumCatT('ASB Investment');
-  s.personalSpend = txns.filter(t=>t.sheet==='Personal'&&!['Take Home Pay','Brother Transfer','Work Reimbursement','Sharesies','Hatch','KiwiSaver','ASB Investment'].includes(t.category)).reduce((s,t)=>s+Math.abs(t.amount),0);
+  s.personalSpend = txns.filter(t=>t.sheet==='Personal'&&!PERSONAL_SPEND_EXCLUDED.includes(t.category)).reduce((s,t)=>s+Math.abs(t.amount),0);
   s.houseShare = s.houseTotal / 2;
   s.savings = s.pay - s.personalSpend - s.houseShare;
   s.netPosition = s.savings + s.investTotal;
@@ -2620,11 +2714,13 @@ async function viewMonthDetailFromData(key, data) {
   const pay = txns.filter(r=>r.category==='Take Home Pay').reduce((s,r)=>s+Math.abs(r.amount),0);
   const investTotal = txns.filter(r=>investCats.includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const personalSpend = txns.filter(r=>r.sheet==='Personal'&&!skipCats.includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
-  const savings = pay - personalSpend - investTotal;
+  const houseShareVal = houseTotal / 2;
+  const savings = pay - personalSpend - houseShareVal;
+  const netPosition = savings + investTotal;
   const cats = {};
   getAllCatsSync().forEach(c => cats[c] = txns.filter(r=>r.category===c).reduce((s,r)=>s+Math.abs(r.amount),0));
 
-  data[key].summary = { ...d.summary, houseTotal, tonyContrib, peterContrib:houseTotal-tonyContrib, pay, personalSpend, investTotal, savings, netPosition, houseShare: houseShareUpd, categories:cats };
+  data[key].summary = { ...d.summary, houseTotal, tonyContrib, peterContrib: houseTotal - tonyContrib, pay, personalSpend, investTotal, savings, netPosition, houseShare: houseShareVal, categories: cats };
   await saveAllData(data, key);
   await renderDashboard();
 
