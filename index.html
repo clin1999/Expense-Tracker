@@ -422,6 +422,19 @@ select:focus{outline:none;border-color:var(--accent)}
   .tony-row .hide-m, .work-reimb-row .hide-m { display: none; }
 }
 
+/* LOGIN SCREEN */
+#login-screen {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: var(--bg);
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+#login-screen.visible { display: flex; }
+
 #correction-toast {
   position: fixed;
   bottom: 1.5rem;
@@ -535,7 +548,7 @@ select:focus{outline:none;border-color:var(--accent)}
 <div id="correction-toast"></div>
 
 <!-- LOGIN SCREEN -->
-<div id="login-screen" style="display:none;position:fixed;inset:0;z-index:2000;background:var(--bg);align-items:center;justify-content:center;padding:1.5rem">
+<div id="login-screen">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2.5rem 2rem;max-width:380px;width:100%;text-align:center">
     <div style="font-size:2.25rem;margin-bottom:.75rem">🏠</div>
     <h2 style="font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:600;letter-spacing:-0.02em;margin-bottom:6px">15 Pakaraka Drive</h2>
@@ -2459,32 +2472,38 @@ let _currentAuthUser = null;
 
 function getUserId() {
   if (_currentAuthUser) {
-    return EMAIL_USER_MAP[_currentAuthUser.email] || _currentAuthUser.email.split('@')[0].toLowerCase();
+    const email = _currentAuthUser.email.toLowerCase();
+    return EMAIL_USER_MAP[email] || email.split('@')[0];
   }
   return 'peter';
 }
 
 function getCurrentUser() {
   if (_currentAuthUser) {
-    const uid = EMAIL_USER_MAP[_currentAuthUser.email];
-    return uid ? uid.charAt(0).toUpperCase() + uid.slice(1) : _currentAuthUser.email;
+    const email = _currentAuthUser.email.toLowerCase();
+    const uid = EMAIL_USER_MAP[email];
+    if (uid) return uid.charAt(0).toUpperCase() + uid.slice(1);
+    return _currentAuthUser.email.split('@')[0];
   }
   return '';
 }
 
 function updateUserPill(name) {
-  document.getElementById('user-name-display').textContent = name || '—';
-  document.getElementById('user-avatar').textContent = name ? name[0].toUpperCase() : '?';
+  const pill = document.getElementById('user-pill');
+  const avatar = document.getElementById('user-avatar');
+  const nameEl = document.getElementById('user-name-display');
+  nameEl.textContent = name || '—';
+  avatar.textContent = name ? name[0].toUpperCase() : '?';
+  avatar.style.background = name ? 'var(--accent)' : 'var(--text3)';
+  if (pill) pill.title = name ? `Signed in as ${name} — click to sign out` : 'Not signed in';
 }
 
 function showLoginScreen() {
-  const el = document.getElementById('login-screen');
-  el.style.display = 'flex';
+  document.getElementById('login-screen').classList.add('visible');
 }
 
 function hideLoginScreen() {
-  const el = document.getElementById('login-screen');
-  el.style.display = 'none';
+  document.getElementById('login-screen').classList.remove('visible');
 }
 
 async function doLogin() {
@@ -2538,8 +2557,8 @@ function togglePasswordVisibility() {
   input.type = input.type === 'password' ? 'text' : 'password';
 }
 
-// Legacy stubs for any remaining references
-function selectName(n) {}
+// Alias for backwards compatibility
+const updateDetailCat = updateDetailCatInPlace;
 function confirmOtherName() {}
 function forgetUser() { doSignOut(); }
 
@@ -3135,7 +3154,7 @@ Object.assign(window, {
   updateResultCat,
   selectCatMonth, selectHouseCatMonth, selectPersonalCatMonth,
   switchDashTab, toggleReimb, saveUsage, loadUsageForMonth,
-  deleteMonth, closeDetail, viewMonthDetail, updateDetailCat, updateDetailCatInPlace,
+  deleteMonth, closeDetail, viewMonthDetail, updateDetailCatInPlace,
   openDetailSplitModal, unsplitDetailTransaction,
   selectName, confirmOtherName, forgetUser,
   doLogin, doSignOut, togglePasswordVisibility,
