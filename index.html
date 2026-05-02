@@ -134,6 +134,11 @@ nav {
 /* CHARTS */
 .chart-wrap{position:relative;width:100%;height:220px;margin-top:0.5rem}
 canvas{width:100%!important}
+.chart-insights{margin-top:.85rem;padding:.75rem 1rem;background:var(--surface2);border-radius:8px;border-left:3px solid var(--accent);font-size:.8125rem;color:var(--text2);line-height:1.55}
+.chart-insights strong{color:var(--text);font-weight:500}
+.chart-insights ul{margin:.35rem 0 0 1rem;padding:0}
+.chart-insights li{margin:.2rem 0}
+.chart-insights.empty{border-left-color:var(--border2);color:var(--text3);font-size:.78rem}
 
 /* TWO COL */
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
@@ -633,6 +638,7 @@ select:focus{outline:none;border-color:var(--accent)}
       <div class="card">
         <div class="card-label">Monthly house spend</div>
         <div class="chart-wrap"><canvas id="chart-house-trend"></canvas></div>
+        <div id="house-chart-insights" class="chart-insights empty" style="display:none"></div>
       </div>
       <div class="two-col">
         <div class="card">
@@ -721,8 +727,9 @@ select:focus{outline:none;border-color:var(--accent)}
         <div class="metric-grid" id="cumulative-metrics" style="margin-bottom:0"></div>
       </div>
       <div class="card">
-        <div class="card-label">Monthly spend vs take home pay</div>
-        <div class="chart-wrap" style="height:200px"><canvas id="chart-personal-trend"></canvas></div>
+        <div class="card-label">Monthly spend by category vs take home pay</div>
+        <div class="chart-wrap" style="height:240px"><canvas id="chart-personal-trend"></canvas></div>
+        <div id="personal-chart-insights" class="chart-insights empty" style="display:none"></div>
       </div>
       <div class="two-col">
         <div class="card">
@@ -1563,6 +1570,19 @@ function getHouseCatsSync() {
   if (!_catsCache) return DEFAULT_HOUSE_CATS;
   return _catsCache.house;
 }
+
+function getPersonalCatsSync() {
+  if (!_catsCache) return DEFAULT_PERSONAL_CATS;
+  return _catsCache.personal;
+}
+
+/** Personal categories shown as stacked bars (excludes pay / transfers / reimbursements only). */
+function getPersonalStackCatNames() {
+  const skip = new Set(['Take Home Pay','Brother Transfer','Work Reimbursement']);
+  return getPersonalCatsSync().filter(c => !skip.has(c));
+}
+
+const INVESTMENT_CAT_NAMES = ['Sharesies','Hatch','KiwiSaver','ASB Investment'];
 function getWorkCatsSync() {
   if (!_catsCache) return DEFAULT_WORK_CATS;
   return _catsCache.work || DEFAULT_WORK_CATS;
@@ -1786,11 +1806,125 @@ async function _doSave() {
 // ═══════════════════════════
 let chartInstances = {};
 
+const HOUSE_CHART_COLORS = [
+  'rgba(45,90,61,0.88)','rgba(122,79,16,0.88)','rgba(26,61,107,0.88)','rgba(15,90,74,0.88)',
+  'rgba(107,61,122,0.85)','rgba(160,40,40,0.82)','rgba(150,130,110,0.85)','rgba(45,74,107,0.88)',
+  'rgba(122,90,50,0.85)','rgba(26,90,61,0.75)'
+];
+const PERSONAL_CHART_COLORS = [
+  'rgba(139,74,28,0.82)','rgba(107,61,122,0.82)','rgba(26,61,107,0.82)','rgba(160,40,40,0.78)',
+  'rgba(45,90,61,0.78)','rgba(122,79,16,0.82)','rgba(45,74,107,0.82)','rgba(15,90,74,0.78)',
+  'rgba(122,90,50,0.8)','rgba(74,45,107,0.78)','rgba(26,90,61,0.72)'
+];
+
+function renderInsightPanel(containerId, title, lines) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.style.display = 'block';
+  if (!lines.length) {
+    el.classList.add('empty');
+    el.innerHTML = `<span>No strong month-on-month signals — patterns look typical.</span>`;
+    return;
+  }
+  el.classList.remove('empty');
+  el.innerHTML = `<strong>${title}</strong><ul>${lines.map(t => `<li>${t}</li>`).join('')}</ul>`;
+}
+
+function computeHouseInsights(keys, data) {
+  if (keys.length < 1) return [];
+  const latestK = keys[keys.length - 1];
+  const prevK = keys.length > 1 ? keys[keys.length - 2] : null;
+  const houseNames = getHouseCatsSync();
+  const catsL = data[latestK].summary.categories || {};
+  const totalH = data[latestK].summary.houseTotal || 0;
+  const used = new Set();
+  const lines = [];
+
+  for (const cat of houseNames) {
+    const cur = catsL[cat] || 0;
+    const prev = prevK ? (data[prevK].summary.categories?.[cat] || 0) : 0;
+    if (cur < 20 || prev < 15) continue;
+    if (cur > prev * 1.3 && (cur - prev) >= 30) {
+      const pct = ((cur - prev) / prev * 100).toFixed(0);
+      lines.push({ p: 0, t: `<strong>${cat}</strong> jumped about ${pct}% vs last month ($${prev.toFixed(0)} → $${cur.toFixed(0)}).` });
+      used.add(cat);
+    }
+  }
+  const idx = keys.indexOf(latestK);
+  const priorKeys = keys.slice(Math.max(0, idx - 3), idx);
+  for (const cat of houseNames) {
+    if (used.has(cat)) continue;
+    const cur = catsL[cat] || 0;
+    if (cur < 20 || priorKeys.length < 1) continue;
+    const avg = priorKeys.reduce((s, k) => s + (data[k].summary.categories?.[cat] || 0), 0) / priorKeys.length;
+    if (avg >= 20 && cur > avg * 1.4 && (cur - avg) >= 30) {
+      lines.push({ p: 1, t: `<strong>${cat}</strong> is well above your recent ${priorKeys.length}-month average (~$${avg.toFixed(0)} → $${cur.toFixed(0)}).` });
+      used.add(cat);
+    }
+  }
+  for (const cat of houseNames) {
+    if (used.has(cat)) continue;
+    const cur = catsL[cat] || 0;
+    if (totalH > 0 && cur >= 45 && cur / totalH >= 0.32) {
+      lines.push({ p: 2, t: `<strong>${cat}</strong> is a large share of house spend (${(cur / totalH * 100).toFixed(0)}% of $${totalH.toFixed(0)}).` });
+      used.add(cat);
+    }
+  }
+  return lines.sort((a, b) => a.p - b.p).map(x => x.t).slice(0, 4);
+}
+
+function computePersonalInsights(keys, data) {
+  if (keys.length < 1) return [];
+  const latestK = keys[keys.length - 1];
+  const prevK = keys.length > 1 ? keys[keys.length - 2] : null;
+  const stackNames = getPersonalStackCatNames();
+  const investSet = new Set(INVESTMENT_CAT_NAMES);
+  const catsL = data[latestK].summary.categories || {};
+  const spendTotal = data[latestK].summary.personalSpend || 0;
+  const used = new Set();
+  const lines = [];
+
+  for (const cat of stackNames) {
+    const cur = catsL[cat] || 0;
+    const prev = prevK ? (data[prevK].summary.categories?.[cat] || 0) : 0;
+    if (cur < 18 || prev < 12) continue;
+    if (cur > prev * 1.35 && (cur - prev) >= 28) {
+      const pct = ((cur - prev) / prev * 100).toFixed(0);
+      const hint = investSet.has(cat) ? ' (investment contributions)' : '';
+      lines.push({ p: 0, t: `<strong>${cat}</strong> is up ~${pct}% vs last month ($${prev.toFixed(0)} → $${cur.toFixed(0)})${hint}.` });
+      used.add(cat);
+    }
+  }
+  const idx = keys.indexOf(latestK);
+  const priorKeys = keys.slice(Math.max(0, idx - 3), idx);
+  for (const cat of stackNames) {
+    if (used.has(cat)) continue;
+    const cur = catsL[cat] || 0;
+    if (cur < 18 || priorKeys.length < 1) continue;
+    const avg = priorKeys.reduce((s, k) => s + (data[k].summary.categories?.[cat] || 0), 0) / priorKeys.length;
+    if (avg >= 15 && cur > avg * 1.45 && (cur - avg) >= 28) {
+      lines.push({ p: 1, t: `<strong>${cat}</strong> is higher than your recent average ($${avg.toFixed(0)} → $${cur.toFixed(0)}).` });
+      used.add(cat);
+    }
+  }
+  for (const cat of stackNames) {
+    if (used.has(cat)) continue;
+    const cur = catsL[cat] || 0;
+    if (investSet.has(cat)) continue;
+    if (spendTotal > 0 && cur >= 40 && cur / spendTotal >= 0.38) {
+      lines.push({ p: 2, t: `<strong>${cat}</strong> is a large share of true expenses (${(cur / spendTotal * 100).toFixed(0)}% of $${spendTotal.toFixed(0)}).` });
+      used.add(cat);
+    }
+  }
+  return lines.sort((a, b) => a.p - b.p).map(x => x.t).slice(0, 4);
+}
+
 function destroyChart(id) {
   if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
 }
 
 async function renderDashboard() {
+  await loadCategories();
   const data = await loadAllData();
   const keys = sortedKeys(data);
 
@@ -1825,21 +1959,47 @@ async function renderDashboard() {
     <div class="metric"><div class="metric-label">Half share each</div><div class="metric-value">$${(s.houseTotal/2).toFixed(0)}</div><div class="metric-sub">ideal split</div></div>
   `;
 
-  // House trend chart
+  // House trend chart — one stack segment per category from Settings (same order as 🏠 chips)
   destroyChart('house-trend');
-  const houseTotals = keys.map(k => data[k].summary.houseTotal);
-  const houseCatKeys = ['Groceries','Electricity','Water','Wifi','Council Rates','Insurance'];
+  const houseCatNames = getHouseCatsSync();
+  const houseTrendDatasets = houseCatNames.map((name, i) => ({
+    label: name,
+    data: keys.map(k => data[k].summary.categories?.[name] || 0),
+    backgroundColor: HOUSE_CHART_COLORS[i % HOUSE_CHART_COLORS.length],
+    borderRadius: 3,
+    borderSkipped: false,
+    stack: 'house'
+  }));
   chartInstances['house-trend'] = new Chart(document.getElementById('chart-house-trend'), {
-    type:'bar',
-    data:{ labels, datasets:[
-      { label:'Groceries', data:keys.map(k=>data[k].summary.categories?.Groceries||0), backgroundColor:'rgba(45,90,61,0.8)', borderRadius:3, borderSkipped:false },
-      { label:'Electricity', data:keys.map(k=>data[k].summary.categories?.Electricity||0), backgroundColor:'rgba(122,79,16,0.8)', borderRadius:3, borderSkipped:false },
-      { label:'Wifi', data:keys.map(k=>data[k].summary.categories?.Wifi||0), backgroundColor:'rgba(26,61,107,0.8)', borderRadius:3, borderSkipped:false },
-      { label:'Other house', data:keys.map(k=>{const c=data[k].summary.categories||{};return (c.Water||0)+(c['Council Rates']||0)+(c.Insurance||0);}), backgroundColor:'rgba(150,130,110,0.7)', borderRadius:3, borderSkipped:false },
-    ]},
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:true,position:'top',labels:{font:{family:'DM Mono',size:10},usePointStyle:true,pointStyleWidth:8}},tooltip:{titleFont:{family:'DM Mono'},bodyFont:{family:'DM Sans'},callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y?.toFixed(0)}`}}},
-      scales:{x:{stacked:true,grid:{display:false},ticks:{font:{family:'DM Mono',size:10}}},y:{stacked:true,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{family:'DM Mono',size:10},callback:v=>'$'+v}}} }
+    type: 'bar',
+    data: { labels, datasets: houseTrendDatasets },
+    options: {
+      interaction: { mode: 'index', intersect: false },
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'top', labels: { font: { family: 'DM Mono', size: 10 }, usePointStyle: true, pointStyleWidth: 8 } },
+        tooltip: {
+          titleFont: { family: 'DM Mono' },
+          bodyFont: { family: 'DM Sans' },
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y?.toFixed(0)}`,
+            footer: (items) => {
+              if (!items.length) return '';
+              let sum = 0;
+              items.forEach(ti => { sum += ti.parsed.y || 0; });
+              return `Month total: $${sum.toFixed(0)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { font: { family: 'DM Mono', size: 10 } } },
+        y: { stacked: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { family: 'DM Mono', size: 10 }, callback: v => '$' + v } }
+      }
+    }
   });
+  renderInsightPanel('house-chart-insights', 'Latest month — signals', computeHouseInsights(keys, data));
 
   // Peter vs Tony chart
   destroyChart('contrib');
@@ -1912,17 +2072,67 @@ async function renderDashboard() {
     <div class="metric" style="background:transparent;border-color:rgba(45,90,61,0.2)"><div class="metric-label">Total spent</div><div class="metric-value">$${totalSpend.toFixed(0)}</div><div class="metric-sub">true expenses only</div></div>
   `;
   destroyChart('personal-trend');
+  const personalStackNames = getPersonalStackCatNames();
+  const personalStackDatasets = personalStackNames.map((name, i) => ({
+    label: name,
+    data: keys.map(k => data[k].summary.categories?.[name] || 0),
+    backgroundColor: PERSONAL_CHART_COLORS[i % PERSONAL_CHART_COLORS.length],
+    borderRadius: 4,
+    borderSkipped: false,
+    stack: 'personal'
+  }));
   chartInstances['personal-trend'] = new Chart(document.getElementById('chart-personal-trend'), {
-    type:'bar',
-    data:{ labels, datasets:[
-      {label:'Take home pay',data:keys.map(k=>data[k].summary.pay||0),backgroundColor:'rgba(45,90,61,0.2)',borderColor:'rgba(45,90,61,0.8)',borderWidth:2,type:'line',tension:.4,pointRadius:3,fill:false},
-      {label:'Personal spend',data:keys.map(k=>data[k].summary.personalSpend||0),backgroundColor:'rgba(139,74,28,0.75)',borderRadius:4,borderSkipped:false},
-      {label:'Investments',data:keys.map(k=>data[k].summary.investTotal||0),backgroundColor:'rgba(26,61,107,0.7)',borderRadius:4,borderSkipped:false},
-    ]},
-    options:{ responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:true,position:'top',labels:{font:{family:'DM Mono',size:10},usePointStyle:true,pointStyleWidth:8}},tooltip:{titleFont:{family:'DM Mono'},bodyFont:{family:'DM Sans'},callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y?.toFixed(0)}`}}},
-      scales:{x:{stacked:true,grid:{display:false},ticks:{font:{family:'DM Mono',size:10}}},y:{stacked:false,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{family:'DM Mono',size:10},callback:v=>'$'+v}}} }
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'line',
+          label: 'Take home pay',
+          data: keys.map(k => data[k].summary.pay || 0),
+          borderColor: 'rgba(45,90,61,0.95)',
+          backgroundColor: 'transparent',
+          borderWidth: 2.5,
+          tension: 0.35,
+          pointRadius: 4,
+          pointBackgroundColor: 'rgba(45,90,61,1)',
+          fill: false,
+          order: 0
+        },
+        ...personalStackDatasets.map(d => ({ ...d, order: 1 }))
+      ]
+    },
+    options: {
+      interaction: { mode: 'index', intersect: false },
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'top', labels: { font: { family: 'DM Mono', size: 9 }, usePointStyle: true, pointStyleWidth: 8 }, maxHeight: 72 },
+        tooltip: {
+          titleFont: { family: 'DM Mono' },
+          bodyFont: { family: 'DM Sans' },
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y?.toFixed(0)}`,
+            footer: (items) => {
+              if (!items.length) return '';
+              const sumBars = items.filter(ti => ti.dataset.stack === 'personal').reduce((s, ti) => s + (ti.parsed.y || 0), 0);
+              if (sumBars <= 0) return '';
+              return `Stacked total (excl. pay line): $${sumBars.toFixed(0)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { font: { family: 'DM Mono', size: 9 }, maxRotation: 45, minRotation: 0 } },
+        y: {
+          stacked: true,
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          ticks: { font: { family: 'DM Mono', size: 10 }, callback: v => '$' + v }
+        }
+      }
+    }
   });
+  renderInsightPanel('personal-chart-insights', 'Latest month — signals', computePersonalInsights(keys, data));
 
   // Savings + net position chart
   destroyChart('savings');
@@ -2112,6 +2322,7 @@ async function refreshDashboard() {
   btn.disabled = true;
   icon.style.animation = 'spin .7s linear infinite';
   _cache = {};
+  _catsCache = null;
   await renderDashboard();
   icon.style.animation = '';
   btn.disabled = false;
@@ -2728,6 +2939,7 @@ async function addCategory() {
   document.getElementById('new-cat-name').value = '';
   showCorrectionToast(`Added "${name}" to ${sheet} categories`);
   renderSettings();
+  await renderDashboard();
 }
 
 async function removeCategory(cat, sheet) {
@@ -2740,6 +2952,7 @@ async function removeCategory(cat, sheet) {
   await saveCategories(cats);
   showCorrectionToast(`Removed "${cat}"`);
   renderSettings();
+  await renderDashboard();
 }
 
 async function renderCorrectionsLog() {
