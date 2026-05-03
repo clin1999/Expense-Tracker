@@ -698,7 +698,16 @@ select:focus{outline:none;border-color:var(--accent)}
       </div>
       <div class="card">
         <div class="card-label">Monthly spend by category vs take home pay</div>
-        <div class="chart-wrap" style="height:240px"><canvas id="chart-personal-trend"></canvas></div>
+        <div class="chart-wrap" style="height:340px"><canvas id="chart-personal-trend"></canvas></div>
+        <!-- Category focus selector -->
+        <div style="margin-top:.85rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+          <span style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">Focus category</span>
+          <select id="personal-cat-focus" onchange="focusPersonalCategory(this.value)"
+            style="font-size:.8rem;padding:.4rem .75rem;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif">
+            <option value="">— Show all —</option>
+          </select>
+          <span id="personal-cat-focus-info" style="font-size:.8rem;color:var(--text3)"></span>
+        </div>
         <div id="personal-chart-insights" class="chart-insights empty" style="display:none"></div>
       </div>
       <div class="two-col">
@@ -1840,6 +1849,76 @@ const PERSONAL_CHART_COLORS = [
   'rgba(122,90,50,0.8)','rgba(74,45,107,0.78)','rgba(26,90,61,0.72)'
 ];
 
+function focusPersonalCategory(cat) {
+  const chart = chartInstances['personal-trend'];
+  if (!chart) return;
+  const d = window._personalChartData;
+  if (!d) return;
+  const infoEl = document.getElementById('personal-cat-focus-info');
+
+  if (!cat) {
+    // Reset — restore all stacked bars at full opacity
+    chart.data.datasets.forEach((ds, i) => {
+      if (ds.stack === 'personal') {
+        const colors = PERSONAL_CHART_COLORS;
+        const idx = d.personalStackNames.indexOf(ds.label);
+        ds.backgroundColor = colors[idx % colors.length];
+        ds.type = 'bar';
+        ds.order = 1;
+        ds.hidden = false;
+      }
+    });
+    chart.options.scales.y.stacked = true;
+    chart.options.scales.x.stacked = true;
+    if (infoEl) infoEl.textContent = '';
+    chart.update();
+    return;
+  }
+
+  // Focus mode: dim all bars, highlight selected as line
+  const colors = PERSONAL_CHART_COLORS;
+  chart.data.datasets.forEach((ds, i) => {
+    if (ds.stack !== 'personal') return;
+    const idx = d.personalStackNames.indexOf(ds.label);
+    const baseColor = colors[idx % colors.length];
+    if (ds.label === cat) {
+      // Convert to line for focused category
+      ds.type = 'line';
+      ds.borderColor = baseColor.replace(/[\d.]+\)$/, '1)');
+      ds.backgroundColor = baseColor.replace(/[\d.]+\)$/, '0.15)');
+      ds.borderWidth = 2.5;
+      ds.pointRadius = 5;
+      ds.tension = 0.35;
+      ds.fill = true;
+      ds.hidden = false;
+      ds.order = 1;
+    } else {
+      ds.type = 'bar';
+      ds.backgroundColor = baseColor.replace(/[\d.]+\)$/, '0.12)');
+      ds.hidden = false;
+      ds.order = 2;
+    }
+  });
+  chart.options.scales.y.stacked = false;
+  chart.options.scales.x.stacked = false;
+
+  // Show avg info
+  if (infoEl && d.keys.length > 1) {
+    const vals = d.keys.map(k => d.data[k].summary.categories?.[cat] || 0);
+    const avg = vals.slice(0, -1).reduce((s, v) => s + v, 0) / (vals.length - 1);
+    const latest = vals[vals.length - 1];
+    const diff = latest - avg;
+    const pct = avg > 0 ? ((diff / avg) * 100).toFixed(0) : 0;
+    const arrow = diff > 0 ? '↑' : '↓';
+    const color = diff > 0 ? 'color:var(--red)' : 'color:var(--accent)';
+    infoEl.innerHTML = `Latest: <strong>$${latest.toFixed(0)}</strong> &nbsp;|&nbsp; Avg: <strong>$${avg.toFixed(0)}</strong> &nbsp;|&nbsp; <span style="${color}">${arrow} ${Math.abs(pct)}% vs avg</span>`;
+  } else if (infoEl) {
+    infoEl.textContent = '';
+  }
+
+  chart.update();
+}
+
 // ─── insight banners + full section ───────────────────────────────────────
 const INSIGHT_EMOJIS = {
   'Groceries':'🛒','Electricity':'⚡','Water':'💧','Wifi':'📶','Council Rates':'🏛️',
@@ -2266,6 +2345,19 @@ async function renderDashboard() {
     borderSkipped: false,
     stack: 'personal'
   }));
+
+  // Populate focus selector
+  const focusSel = document.getElementById('personal-cat-focus');
+  if (focusSel) {
+    focusSel.innerHTML = '<option value="">— Show all —</option>' +
+      personalStackNames.map(n => `<option value="${n}">${n}</option>`).join('');
+    focusSel.value = '';
+    document.getElementById('personal-cat-focus-info').textContent = '';
+  }
+
+  // Store chart data globally for focus function
+  window._personalChartData = { keys, data, labels, personalStackNames, personalStackDatasets };
+
   chartInstances['personal-trend'] = new Chart(document.getElementById('chart-personal-trend'), {
     type: 'bar',
     data: {
@@ -2292,7 +2384,20 @@ async function renderDashboard() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: true, position: 'top', labels: { font: { family: 'DM Mono', size: 9 }, usePointStyle: true, pointStyleWidth: 8 }, maxHeight: 72 },
+        legend: {
+          display: true, position: 'top',
+          labels: { font: { family: 'DM Mono', size: 9 }, usePointStyle: true, pointStyleWidth: 8 },
+          maxHeight: 80,
+          onClick: (e, legendItem, legend) => {
+            // Override default click — use our focus selector instead
+            const cat = legendItem.text;
+            const sel = document.getElementById('personal-cat-focus');
+            if (sel) {
+              sel.value = sel.value === cat ? '' : cat;
+              focusPersonalCategory(sel.value);
+            }
+          }
+        },
         tooltip: {
           titleFont: { family: 'DM Mono' },
           bodyFont: { family: 'DM Sans' },
@@ -2302,7 +2407,7 @@ async function renderDashboard() {
               if (!items.length) return '';
               const sumBars = items.filter(ti => ti.dataset.stack === 'personal').reduce((s, ti) => s + (ti.parsed.y || 0), 0);
               if (sumBars <= 0) return '';
-              return `Stacked total (excl. pay line): $${sumBars.toFixed(0)}`;
+              return `Total spend: $${sumBars.toFixed(0)}`;
             }
           }
         }
@@ -3557,7 +3662,7 @@ Object.assign(window, {
   showPage, switchInner, loadSample, goToPrompt, copyPrompt, loadResults,
   saveCurrentMonth, togglePaste, handleFiles, removeFile,
   updateResultCat,
-  selectCatMonth, selectHouseCatMonth, selectPersonalCatMonth,
+  selectCatMonth, selectHouseCatMonth, selectPersonalCatMonth, focusPersonalCategory,
   switchDashTab, toggleReimb, saveUsage, loadUsageForMonth,
   deleteMonth, closeDetail, viewMonthDetail, updateDetailCatInPlace,
   openDetailSplitModal, unsplitDetailTransaction,
