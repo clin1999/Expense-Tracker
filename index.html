@@ -464,7 +464,50 @@ select:focus{outline:none;border-color:var(--accent)}
 }
 
 /* WELCOME OVERLAY */
-
+#welcome-overlay {
+  position:fixed; inset:0; z-index:1000;
+  background:var(--bg);
+  display:flex; align-items:center; justify-content:center;
+  padding:1.5rem;
+}
+#welcome-overlay.hidden { display:none; }
+.welcome-box {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:2.5rem 2rem;
+  max-width:400px; width:100%;
+  text-align:center;
+}
+.welcome-box h2 {
+  font-family:'Playfair Display',serif;
+  font-size:1.6rem; font-weight:600;
+  letter-spacing:-0.02em;
+  margin-bottom:6px;
+}
+.welcome-box p {
+  font-size:.875rem; color:var(--text2);
+  margin-bottom:1.75rem; line-height:1.6;
+}
+.name-btns { display:flex; gap:.75rem; justify-content:center; margin-bottom:1.25rem; }
+.name-btn {
+  padding:.7rem 1.75rem;
+  border-radius:8px; border:1.5px solid var(--border2);
+  background:transparent; cursor:pointer;
+  font-family:'Playfair Display',serif;
+  font-size:1.1rem; color:var(--text);
+  transition:all .15s;
+}
+.name-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-l); }
+.name-btn.selected { border-color:var(--accent); background:var(--accent); color:#fff; }
+.other-name-row { display:flex; gap:8px; justify-content:center; }
+.other-name-row input {
+  padding:.5rem .85rem; border:1px solid var(--border2);
+  border-radius:6px; font-family:'DM Sans',sans-serif;
+  font-size:.875rem; color:var(--text); background:var(--surface2);
+  width:160px;
+}
+.other-name-row input:focus { outline:none; border-color:var(--accent); background:#fff; }
 
 /* USER PILL in nav */
 #user-pill {
@@ -592,8 +635,6 @@ select:focus{outline:none;border-color:var(--accent)}
         <h1>House</h1>
         <p id="house-subtitle">Shared expenses with Tony</p>
       </div>
-      <!-- Insights summary banner -->
-      <div id="house-insights-summary" style="margin-bottom:1rem"></div>
       <div class="metric-grid" id="house-metrics"></div>
       <div class="card">
         <div class="card-label">Monthly house spend</div>
@@ -618,32 +659,55 @@ select:focus{outline:none;border-color:var(--accent)}
         <div style="display:flex;align-items:baseline;gap:.75rem;margin-bottom:.25rem;flex-wrap:wrap;justify-content:space-between">
           <div>
             <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600">Electricity & Water usage</div>
-            <div style="font-size:.8rem;color:var(--text2);margin-top:2px">Log your monthly meter readings to track usage trends</div>
+            <div style="font-size:.8rem;color:var(--text2);margin-top:2px">Drop your invoice PDF or image — Claude will extract the usage automatically</div>
           </div>
         </div>
-        <!-- Month selector for usage entry -->
+
+        <!-- Month selector -->
         <div style="margin:1rem 0 .75rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
           <select id="usage-month-select" style="font-size:.8rem"></select>
-          <span style="font-size:.8rem;color:var(--text3)">Enter usage for this month:</span>
+          <span style="font-size:.8rem;color:var(--text3)">selected month</span>
         </div>
+
+        <!-- Invoice drop zones -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+          <!-- Electricity -->
           <div style="background:var(--surface2);border-radius:8px;padding:1rem">
-            <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:.5rem">⚡ Electricity</div>
+            <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:.75rem">⚡ Electricity (Genesis Energy)</div>
+            <div id="elec-drop-zone" onclick="document.getElementById('elec-file-input').click()"
+              style="border:2px dashed var(--border2);border-radius:8px;padding:1rem;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:.75rem">
+              <input type="file" id="elec-file-input" accept=".pdf,image/*" style="display:none" onchange="handleInvoiceFile('elec',this)">
+              <div id="elec-drop-icon" style="font-size:1.5rem;margin-bottom:4px">📄</div>
+              <div style="font-size:.78rem;color:var(--text3)">Drop invoice or click to browse</div>
+              <div style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3);margin-top:2px">PDF or image</div>
+            </div>
+            <div id="elec-invoice-status" style="display:none;font-size:.75rem;margin-bottom:.75rem;padding:.5rem .75rem;border-radius:6px;font-family:'DM Mono',monospace"></div>
             <div style="display:flex;gap:8px;align-items:center">
-              <input type="number" id="usage-elec" placeholder="e.g. 320" min="0" step="1"
+              <input type="number" id="usage-elec" placeholder="kWh" min="0" step="1"
                 style="flex:1;padding:.45rem .75rem;border:1px solid var(--border2);border-radius:6px;font-family:'DM Mono',monospace;font-size:.9rem;background:var(--surface);color:var(--text)">
               <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text3)">kWh</span>
             </div>
           </div>
+
+          <!-- Water -->
           <div style="background:var(--surface2);border-radius:8px;padding:1rem">
-            <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:.5rem">💧 Water</div>
+            <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:.75rem">💧 Water (Watercare)</div>
+            <div id="water-drop-zone" onclick="document.getElementById('water-file-input').click()"
+              style="border:2px dashed var(--border2);border-radius:8px;padding:1rem;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:.75rem">
+              <input type="file" id="water-file-input" accept=".pdf,image/*" style="display:none" onchange="handleInvoiceFile('water',this)">
+              <div id="water-drop-icon" style="font-size:1.5rem;margin-bottom:4px">📄</div>
+              <div style="font-size:.78rem;color:var(--text3)">Drop invoice or click to browse</div>
+              <div style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3);margin-top:2px">PDF or image</div>
+            </div>
+            <div id="water-invoice-status" style="display:none;font-size:.75rem;margin-bottom:.75rem;padding:.5rem .75rem;border-radius:6px;font-family:'DM Mono',monospace"></div>
             <div style="display:flex;gap:8px;align-items:center">
-              <input type="number" id="usage-water" placeholder="e.g. 8.5" min="0" step="0.1"
+              <input type="number" id="usage-water" placeholder="m³" min="0" step="0.1"
                 style="flex:1;padding:.45rem .75rem;border:1px solid var(--border2);border-radius:6px;font-family:'DM Mono',monospace;font-size:.9rem;background:var(--surface);color:var(--text)">
               <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text3)">m³</span>
             </div>
           </div>
         </div>
+
         <div style="display:flex;gap:.75rem;align-items:center">
           <button class="btn btn-primary" onclick="saveUsage()">Save usage</button>
           <span id="usage-saved-confirm" style="display:none;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--accent)">✓ Saved!</span>
@@ -672,14 +736,6 @@ select:focus{outline:none;border-color:var(--accent)}
         </div>
         <div id="tony-contrib-table"></div>
       </div>
-      <!-- House full insights section -->
-      <div class="card" id="house-insights-full" style="display:none">
-        <div style="display:flex;align-items:baseline;gap:.75rem;margin-bottom:.5rem">
-          <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600">📊 Spending insights</div>
-          <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">vs your historical average</span>
-        </div>
-        <div id="house-insights-list"></div>
-      </div>
     </div>
 
     <!-- ── PERSONAL TAB ── -->
@@ -688,8 +744,6 @@ select:focus{outline:none;border-color:var(--accent)}
         <h1>Personal</h1>
         <p id="personal-subtitle">Your spending, savings & investments</p>
       </div>
-      <!-- Personal insights summary banner -->
-      <div id="personal-insights-summary" style="margin-bottom:1rem"></div>
       <div class="metric-grid" id="personal-metrics"></div>
       <!-- Cumulative totals -->
       <div class="card" id="cumulative-card" style="background:var(--accent-l);border-color:var(--accent)">
@@ -698,16 +752,7 @@ select:focus{outline:none;border-color:var(--accent)}
       </div>
       <div class="card">
         <div class="card-label">Monthly spend by category vs take home pay</div>
-        <div class="chart-wrap" style="height:340px"><canvas id="chart-personal-trend"></canvas></div>
-        <!-- Category focus selector -->
-        <div style="margin-top:.85rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
-          <span style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">Focus category</span>
-          <select id="personal-cat-focus" onchange="focusPersonalCategory(this.value)"
-            style="font-size:.8rem;padding:.4rem .75rem;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif">
-            <option value="">— Show all —</option>
-          </select>
-          <span id="personal-cat-focus-info" style="font-size:.8rem;color:var(--text3)"></span>
-        </div>
+        <div class="chart-wrap" style="height:240px"><canvas id="chart-personal-trend"></canvas></div>
         <div id="personal-chart-insights" class="chart-insights empty" style="display:none"></div>
       </div>
       <div class="two-col">
@@ -731,14 +776,6 @@ select:focus{outline:none;border-color:var(--accent)}
         <div class="bar-chart-custom" id="personal-cat-bars"></div>
       </div>
       <!-- Work reimbursement tracker -->
-      <!-- Personal full insights section -->
-      <div class="card" id="personal-insights-full" style="display:none">
-        <div style="display:flex;align-items:baseline;gap:.75rem;margin-bottom:.5rem">
-          <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600">📊 Spending insights</div>
-          <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">vs your historical average</span>
-        </div>
-        <div id="personal-insights-list"></div>
-      </div>
       <div class="card" id="work-reimb-card">
         <div style="display:flex;align-items:baseline;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap;justify-content:space-between">
           <div>
@@ -1461,6 +1498,23 @@ document.addEventListener('DOMContentLoaded', () => {
     handleFiles(e.target.files);
     fileInput.value = '';
   });
+
+  // Invoice drop zones
+  ['elec', 'water'].forEach(type => {
+    const dz = document.getElementById(`${type}-drop-zone`);
+    if (!dz) return;
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.borderColor = 'var(--accent)'; dz.style.background = 'var(--accent-l)'; });
+    dz.addEventListener('dragleave', () => { dz.style.borderColor = ''; dz.style.background = ''; });
+    dz.addEventListener('drop', e => {
+      e.preventDefault();
+      dz.style.borderColor = '';
+      dz.style.background = '';
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      const fakeInput = { files: [file], value: '' };
+      handleInvoiceFile(type, fakeInput);
+    });
+  });
 });
 
 
@@ -1849,189 +1903,6 @@ const PERSONAL_CHART_COLORS = [
   'rgba(122,90,50,0.8)','rgba(74,45,107,0.78)','rgba(26,90,61,0.72)'
 ];
 
-function focusPersonalCategory(cat) {
-  const chart = chartInstances['personal-trend'];
-  if (!chart) return;
-  const d = window._personalChartData;
-  if (!d) return;
-  const infoEl = document.getElementById('personal-cat-focus-info');
-
-  if (!cat) {
-    // Reset — restore all stacked bars at full opacity
-    chart.data.datasets.forEach((ds, i) => {
-      if (ds.stack === 'personal') {
-        const colors = PERSONAL_CHART_COLORS;
-        const idx = d.personalStackNames.indexOf(ds.label);
-        ds.backgroundColor = colors[idx % colors.length];
-        ds.type = 'bar';
-        ds.order = 1;
-        ds.hidden = false;
-      }
-    });
-    chart.options.scales.y.stacked = true;
-    chart.options.scales.x.stacked = true;
-    if (infoEl) infoEl.textContent = '';
-    chart.update();
-    return;
-  }
-
-  // Focus mode: dim all bars, highlight selected as line
-  const colors = PERSONAL_CHART_COLORS;
-  chart.data.datasets.forEach((ds, i) => {
-    if (ds.stack !== 'personal') return;
-    const idx = d.personalStackNames.indexOf(ds.label);
-    const baseColor = colors[idx % colors.length];
-    if (ds.label === cat) {
-      // Convert to line for focused category
-      ds.type = 'line';
-      ds.borderColor = baseColor.replace(/[\d.]+\)$/, '1)');
-      ds.backgroundColor = baseColor.replace(/[\d.]+\)$/, '0.15)');
-      ds.borderWidth = 2.5;
-      ds.pointRadius = 5;
-      ds.tension = 0.35;
-      ds.fill = true;
-      ds.hidden = false;
-      ds.order = 1;
-    } else {
-      ds.type = 'bar';
-      ds.backgroundColor = baseColor.replace(/[\d.]+\)$/, '0.12)');
-      ds.hidden = false;
-      ds.order = 2;
-    }
-  });
-  chart.options.scales.y.stacked = false;
-  chart.options.scales.x.stacked = false;
-
-  // Show avg info
-  if (infoEl && d.keys.length > 1) {
-    const vals = d.keys.map(k => d.data[k].summary.categories?.[cat] || 0);
-    const avg = vals.slice(0, -1).reduce((s, v) => s + v, 0) / (vals.length - 1);
-    const latest = vals[vals.length - 1];
-    const diff = latest - avg;
-    const pct = avg > 0 ? ((diff / avg) * 100).toFixed(0) : 0;
-    const arrow = diff > 0 ? '↑' : '↓';
-    const color = diff > 0 ? 'color:var(--red)' : 'color:var(--accent)';
-    infoEl.innerHTML = `Latest: <strong>$${latest.toFixed(0)}</strong> &nbsp;|&nbsp; Avg: <strong>$${avg.toFixed(0)}</strong> &nbsp;|&nbsp; <span style="${color}">${arrow} ${Math.abs(pct)}% vs avg</span>`;
-  } else if (infoEl) {
-    infoEl.textContent = '';
-  }
-
-  chart.update();
-}
-
-// ─── insight banners + full section ───────────────────────────────────────
-const INSIGHT_EMOJIS = {
-  'Groceries':'🛒','Electricity':'⚡','Water':'💧','Wifi':'📶','Council Rates':'🏛️',
-  'Insurance':'🛡️','Eating Out':'🍽️','Jetts':'🏋️','Sharesies':'📈','Hatch':'📊',
-  'KiwiSaver':'💰','ASB Investment':'🏦','Google One':'☁️','Haircut':'✂️',
-  'Health':'💊','Transport':'🚗','Travel':'✈️','Shopping':'🛍️',
-  '2degrees Mobile':'📱','Royal NZ Fo':'⚽','Other':'📦'
-};
-function insightEmoji(cat) { return INSIGHT_EMOJIS[cat] || '📌'; }
-
-function renderInsightsBanner(containerId, lines, tab) {
-  const el = document.getElementById(containerId);
-  if (!el) return;
-  if (!lines.length) { el.innerHTML = ''; return; }
-  const color = tab === 'house' ? 'var(--amber)' : 'var(--accent2)';
-  const bg = tab === 'house' ? 'var(--amber-l)' : 'var(--accent2-l)';
-  el.innerHTML = `
-    <div style="background:${bg};border:1px solid ${color};border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:flex-start;gap:.75rem;flex-wrap:wrap">
-      <div style="font-size:1.25rem;flex-shrink:0">💡</div>
-      <div style="flex:1">
-        <div style="font-weight:500;font-size:.875rem;color:${color};margin-bottom:.35rem">
-          ${lines.length === 1 ? '1 spending signal this month' : `${lines.length} spending signals this month`}
-        </div>
-        <div style="font-size:.8rem;color:var(--text2);line-height:1.6">
-          ${lines.slice(0, 2).map(l => `<div style="margin-bottom:2px">→ ${l.replace(/<strong>/g,'').replace(/<\/strong>/g,'')}</div>`).join('')}
-          ${lines.length > 2 ? `<div style="color:var(--text3);font-size:.75rem;margin-top:4px">+ ${lines.length - 2} more — see Spending insights below</div>` : ''}
-        </div>
-      </div>
-    </div>`;
-}
-
-function renderInsightsFull(cardId, listId, latestLines, allLines) {
-  const card = document.getElementById(cardId);
-  const list = document.getElementById(listId);
-  if (!card || !list) return;
-  if (!allLines.length && !latestLines.length) { card.style.display = 'none'; return; }
-  card.style.display = 'block';
-
-  // Group: latest month signals + all historical rows
-  let html = '';
-  if (latestLines.length) {
-    html += `<div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:.5rem">This month</div>`;
-    html += latestLines.map(l => `
-      <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.75rem 0;border-bottom:1px solid var(--border)">
-        <div style="font-size:1.1rem;flex-shrink:0;line-height:1.4">⚠️</div>
-        <div style="font-size:.875rem;color:var(--text2);line-height:1.6">${l}</div>
-      </div>`).join('');
-  }
-  if (allLines.length) {
-    html += `<div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:1rem 0 .5rem">All categories vs historical average</div>`;
-    html += `<table style="width:100%;border-collapse:collapse;font-size:.82rem">
-      <thead><tr style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">
-        <td style="padding:5px 8px">Category</td>
-        <td style="padding:5px 8px;text-align:right">This month</td>
-        <td style="padding:5px 8px;text-align:right">Avg (${allLines[0]?.avgMonths || 0}mo)</td>
-        <td style="padding:5px 8px;text-align:right">vs avg</td>
-        <td style="padding:5px 8px;text-align:right">Trend</td>
-      </tr></thead><tbody>
-      ${allLines.map(r => {
-        const diff = r.current - r.avg;
-        const pct = r.avg > 0 ? ((diff / r.avg) * 100).toFixed(0) : 0;
-        const isUp = diff > 0;
-        const isSignificant = Math.abs(pct) >= 20 && Math.abs(diff) >= 20;
-        const trendColor = isSignificant ? (isUp ? 'color:var(--red)' : 'color:var(--accent)') : 'color:var(--text3)';
-        return `<tr style="border-top:1px solid var(--border)">
-          <td style="padding:8px">${insightEmoji(r.cat)} ${r.cat}</td>
-          <td style="padding:8px;text-align:right;font-family:'DM Mono',monospace;font-weight:500">$${r.current.toFixed(0)}</td>
-          <td style="padding:8px;text-align:right;font-family:'DM Mono',monospace;color:var(--text3)">$${r.avg.toFixed(0)}</td>
-          <td style="padding:8px;text-align:right;font-family:'DM Mono',monospace;${trendColor}">${isUp ? '+' : ''}${diff.toFixed(0)}</td>
-          <td style="padding:8px;text-align:right">
-            <span style="font-family:'DM Mono',monospace;font-size:.68rem;padding:2px 6px;border-radius:4px;${isSignificant?(isUp?'background:var(--red-l);color:var(--red)':'background:var(--accent-l);color:var(--accent)'):'background:var(--surface2);color:var(--text3)'}">
-              ${isUp ? '↑' : '↓'} ${Math.abs(pct)}%
-            </span>
-          </td>
-        </tr>`;
-      }).join('')}
-      </tbody></table>`;
-  }
-  list.innerHTML = html;
-}
-
-/** Returns per-category comparison data for ALL house categories */
-function computeHouseInsightsAll(keys, data) {
-  if (keys.length < 2) return [];
-  const latestK = keys[keys.length - 1];
-  const priorKeys = keys.slice(Math.max(0, keys.length - 4), keys.length - 1);
-  const catNames = getHouseCatsSync();
-  const catsL = data[latestK].summary.categories || {};
-  return catNames.map(cat => {
-    const current = catsL[cat] || 0;
-    const avg = priorKeys.length
-      ? priorKeys.reduce((s, k) => s + (data[k].summary.categories?.[cat] || 0), 0) / priorKeys.length
-      : 0;
-    return { cat, current, avg, avgMonths: priorKeys.length };
-  }).filter(r => r.current > 0 || r.avg > 0).sort((a, b) => b.current - a.current);
-}
-
-/** Returns per-category comparison data for ALL personal categories */
-function computePersonalInsightsAll(keys, data) {
-  if (keys.length < 2) return [];
-  const latestK = keys[keys.length - 1];
-  const priorKeys = keys.slice(Math.max(0, keys.length - 4), keys.length - 1);
-  const catNames = getPersonalStackCatNames();
-  const catsL = data[latestK].summary.categories || {};
-  return catNames.map(cat => {
-    const current = catsL[cat] || 0;
-    const avg = priorKeys.length
-      ? priorKeys.reduce((s, k) => s + (data[k].summary.categories?.[cat] || 0), 0) / priorKeys.length
-      : 0;
-    return { cat, current, avg, avgMonths: priorKeys.length };
-  }).filter(r => r.current > 0 || r.avg > 0).sort((a, b) => b.current - a.current);
-}
-
 function renderInsightPanel(containerId, title, lines) {
   const el = document.getElementById(containerId);
   if (!el) return;
@@ -2262,8 +2133,6 @@ async function renderDashboard() {
     }
   });
   renderInsightPanel('house-chart-insights', 'Latest month — signals', computeHouseInsights(keys, data));
-  renderInsightsBanner('house-insights-summary', computeHouseInsights(keys, data), 'house');
-  renderInsightsFull('house-insights-full', 'house-insights-list', computeHouseInsights(keys, data), computeHouseInsightsAll(keys, data));
 
   // Peter vs Tony chart
   destroyChart('contrib');
@@ -2345,19 +2214,6 @@ async function renderDashboard() {
     borderSkipped: false,
     stack: 'personal'
   }));
-
-  // Populate focus selector
-  const focusSel = document.getElementById('personal-cat-focus');
-  if (focusSel) {
-    focusSel.innerHTML = '<option value="">— Show all —</option>' +
-      personalStackNames.map(n => `<option value="${n}">${n}</option>`).join('');
-    focusSel.value = '';
-    document.getElementById('personal-cat-focus-info').textContent = '';
-  }
-
-  // Store chart data globally for focus function
-  window._personalChartData = { keys, data, labels, personalStackNames, personalStackDatasets };
-
   chartInstances['personal-trend'] = new Chart(document.getElementById('chart-personal-trend'), {
     type: 'bar',
     data: {
@@ -2384,20 +2240,7 @@ async function renderDashboard() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: {
-          display: true, position: 'top',
-          labels: { font: { family: 'DM Mono', size: 9 }, usePointStyle: true, pointStyleWidth: 8 },
-          maxHeight: 80,
-          onClick: (e, legendItem, legend) => {
-            // Override default click — use our focus selector instead
-            const cat = legendItem.text;
-            const sel = document.getElementById('personal-cat-focus');
-            if (sel) {
-              sel.value = sel.value === cat ? '' : cat;
-              focusPersonalCategory(sel.value);
-            }
-          }
-        },
+        legend: { display: true, position: 'top', labels: { font: { family: 'DM Mono', size: 9 }, usePointStyle: true, pointStyleWidth: 8 }, maxHeight: 72 },
         tooltip: {
           titleFont: { family: 'DM Mono' },
           bodyFont: { family: 'DM Sans' },
@@ -2407,7 +2250,7 @@ async function renderDashboard() {
               if (!items.length) return '';
               const sumBars = items.filter(ti => ti.dataset.stack === 'personal').reduce((s, ti) => s + (ti.parsed.y || 0), 0);
               if (sumBars <= 0) return '';
-              return `Total spend: $${sumBars.toFixed(0)}`;
+              return `Stacked total (excl. pay line): $${sumBars.toFixed(0)}`;
             }
           }
         }
@@ -2423,8 +2266,6 @@ async function renderDashboard() {
     }
   });
   renderInsightPanel('personal-chart-insights', 'Latest month — signals', computePersonalInsights(keys, data));
-  renderInsightsBanner('personal-insights-summary', computePersonalInsights(keys, data), 'personal');
-  renderInsightsFull('personal-insights-full', 'personal-insights-list', computePersonalInsights(keys, data), computePersonalInsightsAll(keys, data));
 
   // Savings + net position chart
   destroyChart('savings');
@@ -3597,6 +3438,124 @@ async function loadUsageForMonth() {
   document.getElementById('usage-water').value = m.water || '';
 }
 
+// ═══════════════════════════
+// INVOICE ANALYSIS
+// ═══════════════════════════
+const ANTHROPIC_API_KEY = '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';
+
+async function handleInvoiceFile(type, inputEl) {
+  const file = inputEl.files[0];
+  if (!file) return;
+
+  const zoneId = type === 'elec' ? 'elec-drop-zone' : 'water-drop-zone';
+  const iconId = type === 'elec' ? 'elec-drop-icon' : 'water-drop-icon';
+  const statusId = type === 'elec' ? 'elec-invoice-status' : 'water-invoice-status';
+  const inputId = type === 'elec' ? 'usage-elec' : 'usage-water';
+  const unit = type === 'elec' ? 'kWh' : 'm³';
+  const label = type === 'elec' ? 'electricity usage in kWh' : 'water usage in cubic metres (m³)';
+
+  const zone = document.getElementById(zoneId);
+  const icon = document.getElementById(iconId);
+  const status = document.getElementById(statusId);
+
+  // Show loading state
+  icon.textContent = '⏳';
+  zone.style.borderColor = 'var(--accent)';
+  zone.style.background = 'var(--accent-l)';
+  status.style.display = 'block';
+  status.style.background = 'var(--surface2)';
+  status.style.color = 'var(--text2)';
+  status.textContent = 'Reading invoice…';
+
+  try {
+    // Read file as base64
+    const base64 = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result.split(',')[1]);
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+
+    const isPDF = file.type === 'application/pdf';
+    const mediaType = isPDF ? 'application/pdf' : file.type || 'image/jpeg';
+
+    const prompt = `This is a utility invoice. Please extract the ${label} for the billing period shown.
+
+Return ONLY a JSON object like this — no other text:
+{"usage": 320.5, "unit": "kWh", "period": "Mar 2026", "supplier": "Genesis Energy", "confidence": "high"}
+
+For electricity: look for "Total kWh", "Units used", "Energy consumed", or similar.
+For water: look for "Consumption", "Volume", "m³ used", or cubic metres.
+If you cannot find the usage figure, return: {"usage": null, "reason": "could not find usage figure"}`;
+
+    const contentBlock = isPDF
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+      : { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } };
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        max_tokens: 256,
+        messages: [{
+          role: 'user',
+          content: [contentBlock, { type: 'text', text: prompt }]
+        }]
+      })
+    });
+
+    const data = await response.json();
+    const text = data.content?.find(b => b.type === 'text')?.text || '';
+    const clean = text.replace(/```json|```/g, '').trim();
+    const result = JSON.parse(clean);
+
+    if (result.usage !== null && result.usage !== undefined) {
+      document.getElementById(inputId).value = result.usage;
+      icon.textContent = '✅';
+      zone.style.borderColor = 'var(--accent)';
+      status.style.background = 'var(--accent-l)';
+      status.style.color = 'var(--accent)';
+      status.textContent = `✓ Found: ${result.usage} ${unit}${result.period ? ' — ' + result.period : ''}${result.supplier ? ' (' + result.supplier + ')' : ''}`;
+
+      // Auto-detect month from invoice period
+      if (result.period) {
+        const monthMap = {jan:'Jan',feb:'Feb',mar:'Mar',apr:'Apr',may:'May',jun:'Jun',jul:'Jul',aug:'Aug',sep:'Sep',oct:'Oct',nov:'Nov',dec:'Dec'};
+        const lower = result.period.toLowerCase();
+        for (const [k,v] of Object.entries(monthMap)) {
+          if (lower.includes(k)) {
+            const sel = document.getElementById('usage-month-select');
+            if (sel) {
+              const match = [...sel.options].find(o => o.text.toLowerCase().includes(v.toLowerCase()));
+              if (match) { sel.value = match.value; loadUsageForMonth(); }
+            }
+            break;
+          }
+        }
+      }
+    } else {
+      icon.textContent = '❓';
+      zone.style.borderColor = 'var(--amber)';
+      status.style.background = 'var(--amber-l)';
+      status.style.color = 'var(--amber)';
+      status.textContent = `Could not find usage — ${result.reason || 'please enter manually'}`;
+    }
+  } catch(e) {
+    console.error('Invoice analysis error:', e);
+    icon.textContent = '❌';
+    zone.style.borderColor = 'var(--red)';
+    status.style.background = 'var(--red-l)';
+    status.style.color = 'var(--red)';
+    status.textContent = 'Error reading invoice — please enter manually';
+  }
+  inputEl.value = '';
+}
+
 async function saveUsage() {
   const key = document.getElementById('usage-month-select')?.value;
   if (!key) return;
@@ -3662,8 +3621,8 @@ Object.assign(window, {
   showPage, switchInner, loadSample, goToPrompt, copyPrompt, loadResults,
   saveCurrentMonth, togglePaste, handleFiles, removeFile,
   updateResultCat,
-  selectCatMonth, selectHouseCatMonth, selectPersonalCatMonth, focusPersonalCategory,
-  switchDashTab, toggleReimb, saveUsage, loadUsageForMonth,
+  selectCatMonth, selectHouseCatMonth, selectPersonalCatMonth,
+  switchDashTab, toggleReimb, saveUsage, loadUsageForMonth, handleInvoiceFile,
   deleteMonth, closeDetail, viewMonthDetail, updateDetailCatInPlace,
   openDetailSplitModal, unsplitDetailTransaction,
   selectName, confirmOtherName, forgetUser,
