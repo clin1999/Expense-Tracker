@@ -784,6 +784,7 @@ select:focus{outline:none;border-color:var(--accent)}
           </div>
           <div id="work-reimb-total" style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:600;color:var(--amber)"></div>
         </div>
+        <div class="month-pills" id="work-reimb-pills"></div>
         <div id="work-reimb-table"></div>
       </div>
     </div>
@@ -1222,6 +1223,7 @@ const EMAIL_USER_MAP = {
 
 // In-memory cache per user
 let _cache = {}; // { peter: {...months}, tony: {...months} }
+let _workReimbTab = 'outstanding';
 let _correctionsCache = null;
 
 function userMonthsRef(userId) {
@@ -2369,6 +2371,72 @@ async function selectPersonalCatMonth(key) {
   renderPersonalCatBars(key, data);
 }
 
+function workReimbId(t) {
+  return `${t.date}_${t.description}_${t.monthKey}`;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function computeWorkReimbState(allWorkTxns, allReimbTxns, reimbStatus) {
+  const workItems = allWorkTxns.map(t => {
+    const id = workReimbId(t);
+    const manual = !!reimbStatus[id];
+    return { ...t, id, manual, auto: false, reimbursed: manual };
+  }).sort((a, b) => `${a.monthKey}-${a.date}`.localeCompare(`${b.monthKey}-${b.date}`));
+
+  const totalReceived = allReimbTxns.reduce((s, t) => s + Math.abs(t.amount), 0);
+  let pool = totalReceived;
+  workItems.filter(i => !i.reimbursed).forEach(i => {
+    const amt = Math.abs(i.amount);
+    if (pool >= amt - 0.005) {
+      i.auto = true;
+      i.reimbursed = true;
+      pool -= amt;
+    }
+  });
+
+  const totalWork = workItems.reduce((s, i) => s + Math.abs(i.amount), 0);
+  const totalReimbursed = workItems.filter(i => i.reimbursed).reduce((s, i) => s + Math.abs(i.amount), 0);
+  const totalOutstanding = workItems.filter(i => !i.reimbursed).reduce((s, i) => s + Math.abs(i.amount), 0);
+  return { workItems, totalWork, totalReceived, totalReimbursed, totalOutstanding, unmatchedCredit: pool };
+}
+
+function renderWorkReimbStatus(item) {
+  const idEnc = encodeURIComponent(item.id);
+  if (item.manual) {
+    return `<button class="reimb-toggle reimb-done" data-reimb-id="${idEnc}" onclick="toggleReimb(this.dataset.reimbId)">✓ Reimbursed</button>`;
+  }
+  if (item.auto) {
+    return `<button class="reimb-toggle reimb-done" data-reimb-id="${idEnc}" onclick="toggleReimb(this.dataset.reimbId)" title="Matched to employer payment — click to confirm manually">✓ Matched</button>`;
+  }
+  return `<button class="reimb-toggle reimb-pending" data-reimb-id="${idEnc}" onclick="toggleReimb(this.dataset.reimbId)">Mark reimbursed</button>`;
+}
+
+function renderWorkReimbRows(items) {
+  return items.slice().reverse().map(t => {
+    const isExpense = t.sheet === 'Work' || !t.category || t.category !== 'Work Reimbursement';
+    if (isExpense) {
+      const item = t;
+      return `<div class="work-reimb-row" style="${item.reimbursed ? 'opacity:.55' : ''}">
+        <span style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--text3)">${escHtml(item.date)} ${escHtml(item.monthLabel)}</span>
+        <span style="font-weight:500">${escHtml(item.description)}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:.8rem;font-weight:500;color:var(--red)">-$${Math.abs(item.amount).toFixed(2)}</span>
+        <span class="hide-m" style="font-size:.75rem;color:var(--text2)">${escHtml(item.category || 'Work')}</span>
+        <span>${renderWorkReimbStatus(item)}</span>
+      </div>`;
+    }
+    return `<div class="work-reimb-row" style="background:var(--accent-l)">
+      <span style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--text3)">${escHtml(t.date)} ${escHtml(t.monthLabel)}</span>
+      <span style="font-weight:500;color:var(--accent)">${escHtml(t.description)}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:.8rem;font-weight:500;color:var(--accent)">+$${Math.abs(t.amount).toFixed(2)}</span>
+      <span class="hide-m" style="font-size:.75rem;color:var(--accent)">Work Reimbursement</span>
+      <span><span class="reimb-toggle reimb-done">✓ Received</span></span>
+    </div>`;
+  }).join('');
+}
+
 function renderWorkReimb(data, keys) {
   const allWorkTxns = [];
   const allReimbTxns = [];
@@ -2385,56 +2453,109 @@ function renderWorkReimb(data, keys) {
   card.style.display = 'block';
 
   const reimbStatus = JSON.parse(localStorage.getItem('pakaraka_reimb')||'{}');
-  const totalWork = allWorkTxns.reduce((s,t) => s+Math.abs(t.amount), 0);
-  const totalAutoReimb = allReimbTxns.reduce((s,t) => s+Math.abs(t.amount), 0);
-  const totalManualReimb = allWorkTxns.filter(t => reimbStatus[t.date+'_'+t.description+'_'+t.monthKey]).reduce((s,t) => s+Math.abs(t.amount), 0);
-  const totalOutstanding = Math.max(0, totalWork - totalAutoReimb - totalManualReimb);
+  const state = computeWorkReimbState(allWorkTxns, allReimbTxns, reimbStatus);
+  const { workItems, totalWork, totalReceived, totalReimbursed, totalOutstanding, unmatchedCredit } = state;
+
+  const activityMonths = [...new Set([
+    ...allWorkTxns.map(t => t.monthKey),
+    ...allReimbTxns.map(t => t.monthKey),
+  ])].sort().reverse();
+  if (_workReimbTab !== 'outstanding' && !activityMonths.includes(_workReimbTab)) {
+    _workReimbTab = 'outstanding';
+  }
 
   document.getElementById('work-reimb-total').innerHTML = totalOutstanding > 0
     ? `$${totalOutstanding.toFixed(2)} <span style="font-family:'DM Sans',sans-serif;font-size:.75rem;color:var(--text2);font-weight:400">outstanding</span>`
     : `<span style="color:var(--accent);font-size:1rem">All reimbursed ✓</span>`;
 
-  const expenseRows = allWorkTxns.slice().reverse().map(t => {
-    const id = t.date+'_'+t.description+'_'+t.monthKey;
-    const reimbursed = !!reimbStatus[id];
-    return `<div class="work-reimb-row" style="${reimbursed?'opacity:.5':''}">
-      <span style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--text3)">${t.date} ${t.monthLabel}</span>
-      <span style="font-weight:500">${t.description}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:.8rem;font-weight:500;color:var(--red)">-$${Math.abs(t.amount).toFixed(2)}</span>
-      <span class="hide-m" style="font-size:.75rem;color:var(--text2)">${t.category}</span>
-      <span><button class="reimb-toggle ${reimbursed?'reimb-done':'reimb-pending'}" onclick="toggleReimb('${id}')">
-        ${reimbursed ? '✓ Reimbursed' : 'Mark reimbursed'}
-      </button></span>
-    </div>`;
-  }).join('');
+  document.getElementById('work-reimb-pills').innerHTML =
+    `<button class="month-pill${_workReimbTab === 'outstanding' ? ' active' : ''}" onclick="selectWorkReimbTab('outstanding')">Outstanding</button>` +
+    activityMonths.map(k =>
+      `<button class="month-pill${_workReimbTab === k ? ' active' : ''}" onclick="selectWorkReimbTab('${k}')">${monthLabel(k)}</button>`
+    ).join('');
 
-  const reimbRows = allReimbTxns.length ? `
-    <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);padding:10px 10px 4px;margin-top:4px">
-      Reimbursements received
-    </div>
-    ${allReimbTxns.slice().reverse().map(t => `
-    <div class="work-reimb-row" style="background:var(--accent-l)">
-      <span style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--text3)">${t.date} ${t.monthLabel}</span>
-      <span style="font-weight:500;color:var(--accent)">${t.description}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:.8rem;font-weight:500;color:var(--accent)">+$${Math.abs(t.amount).toFixed(2)}</span>
-      <span class="hide-m" style="font-size:.75rem;color:var(--accent)">Work Reimbursement</span>
-      <span><span class="reimb-toggle reimb-done">✓ Received</span></span>
-    </div>`).join('')}` : '';
+  const headerRow = `<div class="work-reimb-row" style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);background:var(--surface2);border-radius:6px">
+    <span>Date</span><span>Description</span><span>Amount</span><span class="hide-m">Category</span><span>Status</span>
+  </div>`;
+
+  let scopeWork = totalWork;
+  let scopeReimbursed = totalReimbursed;
+  let scopeOutstanding = totalOutstanding;
+  let scopeReceived = totalReceived;
+  let bodyHtml = '';
+
+  if (_workReimbTab === 'outstanding') {
+    const pending = workItems.filter(i => !i.reimbursed);
+    const receivedRows = allReimbTxns.length ? `
+      <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);padding:10px 10px 4px">
+        Reimbursements received
+      </div>
+      ${renderWorkReimbRows(allReimbTxns)}
+      ${unmatchedCredit > 0.005 ? `<div style="padding:4px 10px 8px;font-size:.75rem;color:var(--text2)">Unallocated credit: <strong style="color:var(--accent)">$${unmatchedCredit.toFixed(2)}</strong> (received but not yet matched to an expense)</div>` : ''}
+    ` : '';
+    const expenseRows = pending.length ? `
+      <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);padding:10px 10px 4px;margin-top:4px">
+        Expenses to claim
+      </div>
+      ${renderWorkReimbRows(pending)}
+    ` : `<div style="padding:1rem;text-align:center;color:var(--text2);font-size:.85rem">No outstanding work expenses</div>`;
+    bodyHtml = receivedRows + expenseRows;
+    scopeWork = pending.reduce((s, i) => s + Math.abs(i.amount), 0);
+    scopeReimbursed = 0;
+    scopeOutstanding = scopeWork;
+    scopeReceived = totalReceived;
+  } else {
+    const monthKey = _workReimbTab;
+    const monthWork = workItems.filter(i => i.monthKey === monthKey);
+    const monthReimb = allReimbTxns.filter(t => t.monthKey === monthKey);
+    const monthWorkTotal = monthWork.reduce((s, i) => s + Math.abs(i.amount), 0);
+    const monthReimbursed = monthWork.filter(i => i.reimbursed).reduce((s, i) => s + Math.abs(i.amount), 0);
+    const monthReceived = monthReimb.reduce((s, t) => s + Math.abs(t.amount), 0);
+    scopeWork = monthWorkTotal;
+    scopeReimbursed = monthReimbursed;
+    scopeOutstanding = monthWorkTotal - monthReimbursed;
+    scopeReceived = monthReceived;
+
+    const receivedSection = monthReimb.length ? `
+      <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);padding:10px 10px 4px">
+        Reimbursements received
+      </div>
+      ${renderWorkReimbRows(monthReimb)}
+    ` : '';
+    const expenseSection = monthWork.length ? `
+      <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);padding:10px 10px 4px;margin-top:4px">
+        Work expenses
+      </div>
+      ${renderWorkReimbRows(monthWork)}
+    ` : `<div style="padding:1rem;text-align:center;color:var(--text2);font-size:.85rem">No work expenses this month</div>`;
+    bodyHtml = receivedSection + expenseSection;
+  }
+
+  const footerStats = _workReimbTab === 'outstanding'
+    ? `<span style="color:var(--text2)">Pending: <strong style="color:var(--amber)">$${scopeOutstanding.toFixed(2)}</strong></span>
+       <span style="color:var(--text2)">Received: <strong style="color:var(--accent)">$${scopeReceived.toFixed(2)}</strong></span>
+       ${unmatchedCredit > 0.005 ? `<span style="color:var(--text2)">Unallocated: <strong style="color:var(--accent)">$${unmatchedCredit.toFixed(2)}</strong></span>` : ''}`
+    : `<span style="color:var(--text2)">Work expenses: <strong style="color:var(--text)">$${scopeWork.toFixed(2)}</strong></span>
+       <span style="color:var(--text2)">Reimbursed: <strong style="color:var(--accent)">$${scopeReimbursed.toFixed(2)}</strong></span>
+       <span style="color:var(--text2)">Received: <strong style="color:var(--accent)">$${scopeReceived.toFixed(2)}</strong></span>
+       <span style="color:var(--text2)">Outstanding: <strong style="color:${scopeOutstanding>0?'var(--amber)':'var(--accent)'}">$${Math.max(0, scopeOutstanding).toFixed(2)}</strong></span>`;
 
   document.getElementById('work-reimb-table').innerHTML = `
-    <div class="work-reimb-row" style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);background:var(--surface2);border-radius:6px">
-      <span>Date</span><span>Description</span><span>Amount</span><span class="hide-m">Category</span><span>Status</span>
-    </div>
-    ${expenseRows}
-    ${reimbRows}
+    ${headerRow}
+    ${bodyHtml}
     <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 10px 2px;font-size:.8rem;border-top:1px solid var(--border);margin-top:4px">
-      <span style="color:var(--text2)">Total expenses: <strong style="color:var(--text)">$${totalWork.toFixed(2)}</strong></span>
-      <span style="color:var(--text2)">Reimbursed: <strong style="color:var(--accent)">$${(totalAutoReimb+totalManualReimb).toFixed(2)}</strong></span>
-      <span style="color:var(--text2)">Outstanding: <strong style="color:${totalOutstanding>0?'var(--amber)':'var(--accent)'}">$${totalOutstanding.toFixed(2)}</strong></span>
+      ${footerStats}
     </div>`;
 }
 
-async function toggleReimb(id) {
+async function selectWorkReimbTab(tab) {
+  _workReimbTab = tab;
+  const data = await loadAllData();
+  renderWorkReimb(data, sortedKeys(data));
+}
+
+async function toggleReimb(idEnc) {
+  const id = decodeURIComponent(idEnc);
   const status = JSON.parse(localStorage.getItem('pakaraka_reimb')||'{}');
   status[id] = !status[id];
   if (!status[id]) delete status[id];
