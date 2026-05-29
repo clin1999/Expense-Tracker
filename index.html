@@ -771,9 +771,16 @@ select:focus{outline:none;border-color:var(--accent)}
         <div class="legend" id="legend-investments" style="margin-top:.75rem"></div>
       </div>
       <div class="card">
-        <div class="card-label">Personal category breakdown — <span id="personal-cat-month-label">latest</span></div>
+        <div class="card-label">Personal breakdown — <span id="personal-cat-month-label">latest</span></div>
         <div class="month-pills" id="personal-cat-pills"></div>
-        <div class="bar-chart-custom" id="personal-cat-bars"></div>
+        <div style="margin-bottom:1.25rem">
+          <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:.5rem">Expenses</div>
+          <div class="bar-chart-custom" id="personal-cat-bars"></div>
+        </div>
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--blue);margin-bottom:.5rem">Investments</div>
+          <div class="bar-chart-custom" id="personal-invest-bars"></div>
+        </div>
       </div>
       <!-- Work reimbursement tracker -->
       <div class="card" id="work-reimb-card">
@@ -1677,9 +1684,14 @@ const INSIGHT_RULES = {
   }
 };
 
-/** Personal categories shown as stacked bars (excludes pay / transfers / reimbursements only). */
+/** Personal categories shown as stacked bars (true expenses only — excludes investments). */
 function getPersonalStackCatNames() {
-  const skip = new Set(PERSONAL_STACK_EXCLUDED);
+  const skip = new Set(PERSONAL_SPEND_EXCLUDED);
+  return getPersonalCatsSync().filter(c => !skip.has(c));
+}
+
+function getPersonalExpenseCatNames() {
+  const skip = new Set(PERSONAL_SPEND_EXCLUDED);
   return getPersonalCatsSync().filter(c => !skip.has(c));
 }
 
@@ -2059,8 +2071,7 @@ function renderFormulaeReference() {
     }</tbody></table>`;
 
   document.getElementById('formulae-live-meta').innerHTML = `
-    <div><strong>Personal stack excludes:</strong> ${PERSONAL_STACK_EXCLUDED.join(', ')}</div>
-    <div><strong>Personal spend excludes:</strong> ${PERSONAL_SPEND_EXCLUDED.join(', ')}</div>
+    <div><strong>Monthly spend chart & expense bars exclude:</strong> ${PERSONAL_SPEND_EXCLUDED.join(', ')}</div>
     <div><strong>Investment categories:</strong> ${INVESTMENT_CAT_NAMES.join(', ')}</div>
     <div><strong>Max insights shown:</strong> House ${h.maxSignals}, Personal ${p.maxSignals}</div>
   `;
@@ -2360,20 +2371,33 @@ function renderHouseCatBars(key, data) {
     </div>`).join('');
 }
 
-function renderPersonalCatBars(key, data) {
-  const personalCatNames = [...(_catsCache?.personal||DEFAULT_PERSONAL_CATS)];
-  const cats = data[key].summary.categories || {};
-  const skipCats = PERSONAL_STACK_EXCLUDED;
-  const filtered = personalCatNames.filter(n=>!skipCats.includes(n)).map(n=>[n,cats[n]||0]).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const max = filtered[0]?.[1]||1;
-  const colors = ['#8b4a1c','#6b3d7a','#1a3d6b','#a02828','#2d4a6b','#7a4f10','#0f5a4a'];
-  document.getElementById('personal-cat-month-label').textContent = monthLabel(key);
-  document.getElementById('personal-cat-bars').innerHTML = filtered.map(([name,val],i)=>`
+function renderCatBarChart(elId, entries, colors) {
+  const filtered = entries.filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  const el = document.getElementById(elId);
+  if (!filtered.length) {
+    el.innerHTML = '<p style="font-size:.82rem;color:var(--text3);padding:.25rem 0">No amounts this month</p>';
+    return;
+  }
+  const max = filtered[0][1];
+  el.innerHTML = filtered.map(([name, val], i) => `
     <div class="bar-row">
       <div class="bar-name" title="${name}">${name}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${(val/max*100).toFixed(1)}%;background:${colors[i%colors.length]}"></div></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(val / max * 100).toFixed(1)}%;background:${colors[i % colors.length]}"></div></div>
       <div class="bar-val">$${val.toFixed(0)}</div>
     </div>`).join('');
+}
+
+function renderPersonalCatBars(key, data) {
+  const cats = data[key].summary.categories || {};
+  const expenseColors = ['#8b4a1c', '#6b3d7a', '#1a3d6b', '#a02828', '#2d4a6b', '#7a4f10', '#0f5a4a'];
+  const investColors = ['#2d5a3d', '#8b4a1c', '#1a3d6b', '#6b3d7a'];
+  document.getElementById('personal-cat-month-label').textContent = monthLabel(key);
+  renderCatBarChart('personal-cat-bars',
+    getPersonalExpenseCatNames().map(n => [n, cats[n] || 0]),
+    expenseColors);
+  renderCatBarChart('personal-invest-bars',
+    INVESTMENT_CAT_NAMES.map(n => [n, cats[n] || 0]),
+    investColors);
 }
 
 async function selectHouseCatMonth(key) {
