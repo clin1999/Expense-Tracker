@@ -780,7 +780,7 @@ select:focus{outline:none;border-color:var(--accent)}
         <div style="display:flex;align-items:baseline;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap;justify-content:space-between">
           <div>
             <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600">Work reimbursements</div>
-            <div style="font-size:.8rem;color:var(--text2);margin-top:2px">Track what your employer owes you back</div>
+            <div style="font-size:.8rem;color:var(--text2);margin-top:2px">Work expenses you paid vs company reimbursements received — tracked separately</div>
           </div>
           <div id="work-reimb-total" style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:600;color:var(--amber)"></div>
         </div>
@@ -2382,39 +2382,24 @@ function escHtml(s) {
 function computeWorkReimbState(allWorkTxns, allReimbTxns, reimbStatus) {
   const workItems = allWorkTxns.map(t => {
     const id = workReimbId(t);
-    const manual = !!reimbStatus[id];
-    return { ...t, id, manual, auto: false, reimbursed: manual };
+    const settled = !!reimbStatus[id];
+    return { ...t, id, settled };
   }).sort((a, b) => `${a.monthKey}-${a.date}`.localeCompare(`${b.monthKey}-${b.date}`));
 
+  const totalSpent = workItems.reduce((s, i) => s + Math.abs(i.amount), 0);
+  const totalSettled = workItems.filter(i => i.settled).reduce((s, i) => s + Math.abs(i.amount), 0);
+  const totalOutstanding = workItems.filter(i => !i.settled).reduce((s, i) => s + Math.abs(i.amount), 0);
   const totalReceived = allReimbTxns.reduce((s, t) => s + Math.abs(t.amount), 0);
-  let pool = totalReceived;
-  workItems.filter(i => i.manual).forEach(i => { pool -= Math.abs(i.amount); });
-  workItems.filter(i => !i.reimbursed).forEach(i => {
-    const amt = Math.abs(i.amount);
-    if (pool >= amt - 0.005) {
-      i.auto = true;
-      i.reimbursed = true;
-      pool -= amt;
-    }
-  });
-
-  const totalWork = workItems.reduce((s, i) => s + Math.abs(i.amount), 0);
-  const totalReimbursed = workItems.filter(i => i.reimbursed).reduce((s, i) => s + Math.abs(i.amount), 0);
-  const totalOutstanding = workItems.filter(i => !i.reimbursed).reduce((s, i) => s + Math.abs(i.amount), 0);
-  const unmatchedCredit = Math.max(0, totalReceived - totalReimbursed);
-  return { workItems, totalWork, totalReceived, totalReimbursed, totalOutstanding, unmatchedCredit };
+  return { workItems, totalSpent, totalSettled, totalOutstanding, totalReceived };
 }
 
 function renderWorkReimbStatus(item) {
   const idEnc = encodeURIComponent(item.id);
   const attrs = `data-reimb-id="${idEnc}" data-reimb-month="${item.monthKey}" onclick="toggleReimb(this.dataset.reimbId, this.dataset.reimbMonth)"`;
-  if (item.manual) {
-    return `<button class="reimb-toggle reimb-done" ${attrs}>✓ Reimbursed</button>`;
+  if (item.settled) {
+    return `<button class="reimb-toggle reimb-done" ${attrs}>✓ Settled</button>`;
   }
-  if (item.auto) {
-    return `<button class="reimb-toggle reimb-done" ${attrs} title="Matched to employer payment — click to confirm manually">✓ Matched</button>`;
-  }
-  return `<button class="reimb-toggle reimb-pending" ${attrs}>Mark reimbursed</button>`;
+  return `<button class="reimb-toggle reimb-pending" ${attrs}>Mark settled</button>`;
 }
 
 function renderWorkReimbRows(items, { settled = false } = {}) {
@@ -2434,7 +2419,7 @@ function renderWorkReimbRows(items, { settled = false } = {}) {
       <span style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--text3)">${escHtml(t.date)} ${escHtml(t.monthLabel)}</span>
       <span style="font-weight:500;color:var(--accent)">${escHtml(t.description)}</span>
       <span style="font-family:'DM Mono',monospace;font-size:.8rem;font-weight:500;color:var(--accent)">+$${Math.abs(t.amount).toFixed(2)}</span>
-      <span class="hide-m" style="font-size:.75rem;color:var(--accent)">Work Reimbursement</span>
+      <span class="hide-m" style="font-size:.75rem;color:var(--accent)">Company payment</span>
       <span><span class="reimb-toggle reimb-done">✓ Received</span></span>
     </div>`;
   }).join('');
@@ -2457,7 +2442,7 @@ function renderWorkReimb(data, keys) {
 
   const reimbStatus = JSON.parse(localStorage.getItem('pakaraka_reimb')||'{}');
   const state = computeWorkReimbState(allWorkTxns, allReimbTxns, reimbStatus);
-  const { workItems, totalWork, totalReceived, totalReimbursed, totalOutstanding, unmatchedCredit } = state;
+  const { workItems, totalSpent, totalSettled, totalOutstanding, totalReceived } = state;
 
   const activityMonths = [...new Set([
     ...allWorkTxns.map(t => t.monthKey),
@@ -2468,8 +2453,8 @@ function renderWorkReimb(data, keys) {
   }
 
   document.getElementById('work-reimb-total').innerHTML = totalOutstanding > 0
-    ? `$${totalOutstanding.toFixed(2)} <span style="font-family:'DM Sans',sans-serif;font-size:.75rem;color:var(--text2);font-weight:400">outstanding</span>`
-    : `<span style="color:var(--accent);font-size:1rem">All reimbursed ✓</span>`;
+    ? `$${totalOutstanding.toFixed(2)} <span style="font-family:'DM Sans',sans-serif;font-size:.75rem;color:var(--text2);font-weight:400">expenses to claim</span>`
+    : `<span style="color:var(--accent);font-size:1rem">All expenses settled ✓</span>`;
 
   document.getElementById('work-reimb-pills').innerHTML =
     `<button class="month-pill${_workReimbTab === 'outstanding' ? ' active' : ''}" onclick="selectWorkReimbTab('outstanding')">Outstanding</button>` +
@@ -2481,75 +2466,74 @@ function renderWorkReimb(data, keys) {
     <span>Date</span><span>Description</span><span>Amount</span><span class="hide-m">Category</span><span>Status</span>
   </div>`;
 
-  let scopeWork = totalWork;
-  let scopeReimbursed = totalReimbursed;
+  let scopeSpent = totalSpent;
+  let scopeSettled = totalSettled;
   let scopeOutstanding = totalOutstanding;
   let scopeReceived = totalReceived;
   let bodyHtml = '';
 
   if (_workReimbTab === 'outstanding') {
-    const pending = workItems.filter(i => !i.reimbursed);
+    const pending = workItems.filter(i => !i.settled);
     const receivedRows = allReimbTxns.length ? `
       <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);padding:10px 10px 4px">
-        Reimbursements received
+        Company reimbursements — paid to you
       </div>
       ${renderWorkReimbRows(allReimbTxns)}
-      ${unmatchedCredit > 0.005 ? `<div style="padding:4px 10px 8px;font-size:.75rem;color:var(--text2)">Surplus received: <strong style="color:var(--accent)">$${unmatchedCredit.toFixed(2)}</strong> — employer paid more than your matched work expenses</div>` : ''}
     ` : '';
     const expenseRows = pending.length ? `
       <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);padding:10px 10px 4px;margin-top:4px">
-        Expenses to claim
+        Work expenses — you paid
       </div>
       ${renderWorkReimbRows(pending)}
-    ` : `<div style="padding:1rem;text-align:center;color:var(--text2);font-size:.85rem">No outstanding work expenses${workItems.some(i => i.reimbursed) ? ' — see month tabs for reimbursed items' : ''}</div>`;
+    ` : `<div style="padding:1rem;text-align:center;color:var(--text2);font-size:.85rem">No outstanding work expenses${workItems.some(i => i.settled) ? ' — see month tabs for settled items' : ''}</div>`;
     bodyHtml = receivedRows + expenseRows;
-    scopeWork = pending.reduce((s, i) => s + Math.abs(i.amount), 0);
-    scopeReimbursed = 0;
-    scopeOutstanding = scopeWork;
+    scopeSpent = pending.reduce((s, i) => s + Math.abs(i.amount), 0);
+    scopeSettled = totalSettled;
+    scopeOutstanding = scopeSpent;
     scopeReceived = totalReceived;
   } else {
     const monthKey = _workReimbTab;
     const monthWork = workItems.filter(i => i.monthKey === monthKey);
     const monthReimb = allReimbTxns.filter(t => t.monthKey === monthKey);
-    const monthWorkTotal = monthWork.reduce((s, i) => s + Math.abs(i.amount), 0);
-    const monthReimbursed = monthWork.filter(i => i.reimbursed).reduce((s, i) => s + Math.abs(i.amount), 0);
+    const monthSpent = monthWork.reduce((s, i) => s + Math.abs(i.amount), 0);
+    const monthSettled = monthWork.filter(i => i.settled).reduce((s, i) => s + Math.abs(i.amount), 0);
     const monthReceived = monthReimb.reduce((s, t) => s + Math.abs(t.amount), 0);
-    const monthPending = monthWork.filter(i => !i.reimbursed);
-    const monthSettled = monthWork.filter(i => i.reimbursed);
-    scopeWork = monthWorkTotal;
-    scopeReimbursed = monthReimbursed;
-    scopeOutstanding = monthWorkTotal - monthReimbursed;
+    const monthPending = monthWork.filter(i => !i.settled);
+    const monthDone = monthWork.filter(i => i.settled);
+    scopeSpent = monthSpent;
+    scopeSettled = monthSettled;
+    scopeOutstanding = monthSpent - monthSettled;
     scopeReceived = monthReceived;
 
     const receivedSection = monthReimb.length ? `
       <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);padding:10px 10px 4px">
-        Reimbursements received
+        Company reimbursements — paid to you
       </div>
       ${renderWorkReimbRows(monthReimb)}
     ` : '';
     const expenseSection = monthWork.length ? `
       ${monthPending.length ? `
       <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);padding:10px 10px 4px;margin-top:4px">
-        Awaiting reimbursement
+        Work expenses — you paid (awaiting settlement)
       </div>
       ${renderWorkReimbRows(monthPending)}` : ''}
-      ${monthSettled.length ? `
+      ${monthDone.length ? `
       <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);padding:10px 10px 4px;margin-top:${monthPending.length ? '8' : '4'}px">
-        Reimbursed
+        Work expenses — settled
       </div>
-      ${renderWorkReimbRows(monthSettled, { settled: true })}` : ''}
+      ${renderWorkReimbRows(monthDone, { settled: true })}` : ''}
     ` : `<div style="padding:1rem;text-align:center;color:var(--text2);font-size:.85rem">No work expenses this month</div>`;
     bodyHtml = receivedSection + expenseSection;
   }
 
   const footerStats = _workReimbTab === 'outstanding'
-    ? `<span style="color:var(--text2)">Pending: <strong style="color:var(--amber)">$${scopeOutstanding.toFixed(2)}</strong></span>
-       <span style="color:var(--text2)">Received: <strong style="color:var(--accent)">$${scopeReceived.toFixed(2)}</strong></span>
-       ${unmatchedCredit > 0.005 ? `<span style="color:var(--text2)" title="Employer reimbursements received minus matched work expenses">Surplus: <strong style="color:var(--accent)">$${unmatchedCredit.toFixed(2)}</strong></span>` : ''}`
-    : `<span style="color:var(--text2)">Work expenses: <strong style="color:var(--text)">$${scopeWork.toFixed(2)}</strong></span>
-       <span style="color:var(--text2)">Reimbursed: <strong style="color:var(--accent)">$${scopeReimbursed.toFixed(2)}</strong></span>
-       <span style="color:var(--text2)">Received: <strong style="color:var(--accent)">$${scopeReceived.toFixed(2)}</strong></span>
-       <span style="color:var(--text2)">Outstanding: <strong style="color:${scopeOutstanding>0?'var(--amber)':'var(--accent)'}">$${Math.max(0, scopeOutstanding).toFixed(2)}</strong></span>`;
+    ? `<span style="color:var(--text2)">Expenses to claim: <strong style="color:var(--amber)">$${scopeOutstanding.toFixed(2)}</strong></span>
+       <span style="color:var(--text2)">Company paid you: <strong style="color:var(--accent)">$${scopeReceived.toFixed(2)}</strong></span>
+       <span style="color:var(--text2)">Expenses settled: <strong style="color:var(--text)">$${scopeSettled.toFixed(2)}</strong></span>`
+    : `<span style="color:var(--text2)">You spent: <strong style="color:var(--text)">$${scopeSpent.toFixed(2)}</strong></span>
+       <span style="color:var(--text2)">Expenses settled: <strong style="color:var(--accent)">$${scopeSettled.toFixed(2)}</strong></span>
+       <span style="color:var(--text2)">Company paid you: <strong style="color:var(--accent)">$${scopeReceived.toFixed(2)}</strong></span>
+       <span style="color:var(--text2)">Still to claim: <strong style="color:${scopeOutstanding>0?'var(--amber)':'var(--accent)'}">$${Math.max(0, scopeOutstanding).toFixed(2)}</strong></span>`;
 
   document.getElementById('work-reimb-table').innerHTML = `
     ${headerRow}
