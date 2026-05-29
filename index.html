@@ -2388,6 +2388,7 @@ function computeWorkReimbState(allWorkTxns, allReimbTxns, reimbStatus) {
 
   const totalReceived = allReimbTxns.reduce((s, t) => s + Math.abs(t.amount), 0);
   let pool = totalReceived;
+  workItems.filter(i => i.manual).forEach(i => { pool -= Math.abs(i.amount); });
   workItems.filter(i => !i.reimbursed).forEach(i => {
     const amt = Math.abs(i.amount);
     if (pool >= amt - 0.005) {
@@ -2400,26 +2401,28 @@ function computeWorkReimbState(allWorkTxns, allReimbTxns, reimbStatus) {
   const totalWork = workItems.reduce((s, i) => s + Math.abs(i.amount), 0);
   const totalReimbursed = workItems.filter(i => i.reimbursed).reduce((s, i) => s + Math.abs(i.amount), 0);
   const totalOutstanding = workItems.filter(i => !i.reimbursed).reduce((s, i) => s + Math.abs(i.amount), 0);
-  return { workItems, totalWork, totalReceived, totalReimbursed, totalOutstanding, unmatchedCredit: pool };
+  const unmatchedCredit = Math.max(0, totalReceived - totalReimbursed);
+  return { workItems, totalWork, totalReceived, totalReimbursed, totalOutstanding, unmatchedCredit };
 }
 
 function renderWorkReimbStatus(item) {
   const idEnc = encodeURIComponent(item.id);
+  const attrs = `data-reimb-id="${idEnc}" data-reimb-month="${item.monthKey}" onclick="toggleReimb(this.dataset.reimbId, this.dataset.reimbMonth)"`;
   if (item.manual) {
-    return `<button class="reimb-toggle reimb-done" data-reimb-id="${idEnc}" onclick="toggleReimb(this.dataset.reimbId)">✓ Reimbursed</button>`;
+    return `<button class="reimb-toggle reimb-done" ${attrs}>✓ Reimbursed</button>`;
   }
   if (item.auto) {
-    return `<button class="reimb-toggle reimb-done" data-reimb-id="${idEnc}" onclick="toggleReimb(this.dataset.reimbId)" title="Matched to employer payment — click to confirm manually">✓ Matched</button>`;
+    return `<button class="reimb-toggle reimb-done" ${attrs} title="Matched to employer payment — click to confirm manually">✓ Matched</button>`;
   }
-  return `<button class="reimb-toggle reimb-pending" data-reimb-id="${idEnc}" onclick="toggleReimb(this.dataset.reimbId)">Mark reimbursed</button>`;
+  return `<button class="reimb-toggle reimb-pending" ${attrs}>Mark reimbursed</button>`;
 }
 
-function renderWorkReimbRows(items) {
+function renderWorkReimbRows(items, { settled = false } = {}) {
   return items.slice().reverse().map(t => {
     const isExpense = t.sheet === 'Work' || !t.category || t.category !== 'Work Reimbursement';
     if (isExpense) {
       const item = t;
-      return `<div class="work-reimb-row" style="${item.reimbursed ? 'opacity:.55' : ''}">
+      return `<div class="work-reimb-row" style="${settled ? 'opacity:.7' : ''}">
         <span style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--text3)">${escHtml(item.date)} ${escHtml(item.monthLabel)}</span>
         <span style="font-weight:500">${escHtml(item.description)}</span>
         <span style="font-family:'DM Mono',monospace;font-size:.8rem;font-weight:500;color:var(--red)">-$${Math.abs(item.amount).toFixed(2)}</span>
@@ -2491,14 +2494,14 @@ function renderWorkReimb(data, keys) {
         Reimbursements received
       </div>
       ${renderWorkReimbRows(allReimbTxns)}
-      ${unmatchedCredit > 0.005 ? `<div style="padding:4px 10px 8px;font-size:.75rem;color:var(--text2)">Unallocated credit: <strong style="color:var(--accent)">$${unmatchedCredit.toFixed(2)}</strong> (received but not yet matched to an expense)</div>` : ''}
+      ${unmatchedCredit > 0.005 ? `<div style="padding:4px 10px 8px;font-size:.75rem;color:var(--text2)">Surplus received: <strong style="color:var(--accent)">$${unmatchedCredit.toFixed(2)}</strong> — employer paid more than your matched work expenses</div>` : ''}
     ` : '';
     const expenseRows = pending.length ? `
       <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);padding:10px 10px 4px;margin-top:4px">
         Expenses to claim
       </div>
       ${renderWorkReimbRows(pending)}
-    ` : `<div style="padding:1rem;text-align:center;color:var(--text2);font-size:.85rem">No outstanding work expenses</div>`;
+    ` : `<div style="padding:1rem;text-align:center;color:var(--text2);font-size:.85rem">No outstanding work expenses${workItems.some(i => i.reimbursed) ? ' — see month tabs for reimbursed items' : ''}</div>`;
     bodyHtml = receivedRows + expenseRows;
     scopeWork = pending.reduce((s, i) => s + Math.abs(i.amount), 0);
     scopeReimbursed = 0;
@@ -2511,6 +2514,8 @@ function renderWorkReimb(data, keys) {
     const monthWorkTotal = monthWork.reduce((s, i) => s + Math.abs(i.amount), 0);
     const monthReimbursed = monthWork.filter(i => i.reimbursed).reduce((s, i) => s + Math.abs(i.amount), 0);
     const monthReceived = monthReimb.reduce((s, t) => s + Math.abs(t.amount), 0);
+    const monthPending = monthWork.filter(i => !i.reimbursed);
+    const monthSettled = monthWork.filter(i => i.reimbursed);
     scopeWork = monthWorkTotal;
     scopeReimbursed = monthReimbursed;
     scopeOutstanding = monthWorkTotal - monthReimbursed;
@@ -2523,10 +2528,16 @@ function renderWorkReimb(data, keys) {
       ${renderWorkReimbRows(monthReimb)}
     ` : '';
     const expenseSection = monthWork.length ? `
+      ${monthPending.length ? `
       <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);padding:10px 10px 4px;margin-top:4px">
-        Work expenses
+        Awaiting reimbursement
       </div>
-      ${renderWorkReimbRows(monthWork)}
+      ${renderWorkReimbRows(monthPending)}` : ''}
+      ${monthSettled.length ? `
+      <div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);padding:10px 10px 4px;margin-top:${monthPending.length ? '8' : '4'}px">
+        Reimbursed
+      </div>
+      ${renderWorkReimbRows(monthSettled, { settled: true })}` : ''}
     ` : `<div style="padding:1rem;text-align:center;color:var(--text2);font-size:.85rem">No work expenses this month</div>`;
     bodyHtml = receivedSection + expenseSection;
   }
@@ -2534,7 +2545,7 @@ function renderWorkReimb(data, keys) {
   const footerStats = _workReimbTab === 'outstanding'
     ? `<span style="color:var(--text2)">Pending: <strong style="color:var(--amber)">$${scopeOutstanding.toFixed(2)}</strong></span>
        <span style="color:var(--text2)">Received: <strong style="color:var(--accent)">$${scopeReceived.toFixed(2)}</strong></span>
-       ${unmatchedCredit > 0.005 ? `<span style="color:var(--text2)">Unallocated: <strong style="color:var(--accent)">$${unmatchedCredit.toFixed(2)}</strong></span>` : ''}`
+       ${unmatchedCredit > 0.005 ? `<span style="color:var(--text2)" title="Employer reimbursements received minus matched work expenses">Surplus: <strong style="color:var(--accent)">$${unmatchedCredit.toFixed(2)}</strong></span>` : ''}`
     : `<span style="color:var(--text2)">Work expenses: <strong style="color:var(--text)">$${scopeWork.toFixed(2)}</strong></span>
        <span style="color:var(--text2)">Reimbursed: <strong style="color:var(--accent)">$${scopeReimbursed.toFixed(2)}</strong></span>
        <span style="color:var(--text2)">Received: <strong style="color:var(--accent)">$${scopeReceived.toFixed(2)}</strong></span>
@@ -2554,12 +2565,14 @@ async function selectWorkReimbTab(tab) {
   renderWorkReimb(data, sortedKeys(data));
 }
 
-async function toggleReimb(idEnc) {
+async function toggleReimb(idEnc, monthKey) {
   const id = decodeURIComponent(idEnc);
   const status = JSON.parse(localStorage.getItem('pakaraka_reimb')||'{}');
-  status[id] = !status[id];
+  const marking = !status[id];
+  status[id] = marking;
   if (!status[id]) delete status[id];
   localStorage.setItem('pakaraka_reimb', JSON.stringify(status));
+  if (marking && monthKey) _workReimbTab = monthKey;
   const data = await loadAllData();
   renderWorkReimb(data, sortedKeys(data));
 }
@@ -3742,7 +3755,7 @@ Object.assign(window, {
   showPage, switchInner, loadSample, goToPrompt, copyPrompt, loadResults,
   saveCurrentMonth, togglePaste, handleFiles, removeFile,
   updateResultCat,
-  selectCatMonth, selectHouseCatMonth, selectPersonalCatMonth,
+  selectCatMonth, selectHouseCatMonth, selectPersonalCatMonth, selectWorkReimbTab,
   switchDashTab, toggleReimb, saveUsage, loadUsageForMonth, handleInvoiceFile,
   deleteMonth, closeDetail, viewMonthDetail, updateDetailCatInPlace,
   openDetailSplitModal, unsplitDetailTransaction,
