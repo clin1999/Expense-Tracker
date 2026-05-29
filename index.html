@@ -1369,6 +1369,18 @@ function sortedKeys(data) {
   return Object.keys(data).sort();
 }
 
+function isWorkExpense(t) {
+  return t.sheet === 'Work' && t.category !== 'Work Reimbursement';
+}
+
+function isCompanyReimb(t) {
+  return t.category === 'Work Reimbursement';
+}
+
+function sumWorkExpenses(txns) {
+  return (txns || []).filter(t => isWorkExpense(t)).reduce((s, t) => s + Math.abs(t.amount), 0);
+}
+
 // ═══════════════════════════
 // NAVIGATION
 // ═══════════════════════════
@@ -1707,7 +1719,7 @@ function updateResultCat(idx, selectEl) {
 function rebuildStep4Summary() {
   const pay = sumCat('Take Home Pay');
   const houseTotal = categorisedResults.filter(r=>r.sheet==='House').reduce((s,r)=>s+Math.abs(r.amount),0);
-  const workTotal = categorisedResults.filter(r=>r.sheet==='Work').reduce((s,r)=>s+Math.abs(r.amount),0);
+  const workTotal = categorisedResults.filter(r=>isWorkExpense(r)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const investTotal = sumCat('Sharesies')+sumCat('Hatch')+sumCat('KiwiSaver')+sumCat('ASB Investment');
   const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!PERSONAL_SPEND_EXCLUDED.includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const houseShare = houseTotal / 2;
@@ -1731,7 +1743,7 @@ function buildStep4() {
 
   const pay = sumCat('Take Home Pay');
   const houseTotal = categorisedResults.filter(r=>r.sheet==='House').reduce((s,r)=>s+Math.abs(r.amount),0);
-  const workTotal = categorisedResults.filter(r=>r.sheet==='Work').reduce((s,r)=>s+Math.abs(r.amount),0);
+  const workTotal = categorisedResults.filter(r=>isWorkExpense(r)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const investTotal = sumCat('Sharesies')+sumCat('Hatch')+sumCat('KiwiSaver')+sumCat('ASB Investment');
   const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!PERSONAL_SPEND_EXCLUDED.includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const houseShare = houseTotal / 2;
@@ -1810,7 +1822,7 @@ function buildStep4() {
   </table>`;
 
   // Work export
-  const workTxns = categorisedResults.filter(r => r.sheet === 'Work');
+  const workTxns = categorisedResults.filter(r => isWorkExpense(r));
   const workCard = document.getElementById('work-export-card');
   if (workTxns.length) {
     workCard.style.display = 'block';
@@ -1862,7 +1874,7 @@ async function _doSave() {
     council=sumCat('Council Rates'), insurance=sumCat('Insurance');
   const investTotal = sharesies+hatch+ks+asbInv;
   const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!PERSONAL_SPEND_EXCLUDED.includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
-  const workTotal = categorisedResults.filter(r=>r.sheet==='Work').reduce((s,r)=>s+Math.abs(r.amount),0);
+  const workTotal = categorisedResults.filter(r=>isWorkExpense(r)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const houseShareSave = houseTotal / 2;
   const savings = pay - personalSpend - houseShareSave;
   const netPosition = savings + investTotal;
@@ -2070,6 +2082,11 @@ async function renderDashboard() {
   }
   document.getElementById('dash-empty').style.display = 'none';
   document.getElementById('dash-content').style.display = 'block';
+
+  // Recompute work expense totals from transactions (excludes Work Reimbursement category)
+  keys.forEach(k => {
+    if (data[k].summary) data[k].summary.workTotal = sumWorkExpenses(data[k].transactions);
+  });
 
   const latest = data[keys[keys.length-1]];
   const prev = keys.length > 1 ? data[keys[keys.length-2]] : null;
@@ -2404,7 +2421,7 @@ function renderWorkReimbStatus(item) {
 
 function renderWorkReimbRows(items, { settled = false } = {}) {
   return items.slice().reverse().map(t => {
-    const isExpense = t.sheet === 'Work' || !t.category || t.category !== 'Work Reimbursement';
+    const isExpense = !isCompanyReimb(t);
     if (isExpense) {
       const item = t;
       return `<div class="work-reimb-row" style="${settled ? 'opacity:.7' : ''}">
@@ -2431,8 +2448,8 @@ function renderWorkReimb(data, keys) {
   keys.forEach(k => {
     const d = data[k];
     (d.transactions||[]).forEach(t => {
-      if (t.sheet === 'Work') allWorkTxns.push({...t, monthKey:k, monthLabel:d.label});
-      if (t.category === 'Work Reimbursement') allReimbTxns.push({...t, monthKey:k, monthLabel:d.label});
+      if (isWorkExpense(t)) allWorkTxns.push({...t, monthKey:k, monthLabel:d.label});
+      if (isCompanyReimb(t)) allReimbTxns.push({...t, monthKey:k, monthLabel:d.label});
     });
   });
 
@@ -2847,7 +2864,7 @@ function rebuildMonthSummary(monthData) {
   const sumCatT = (cat) => txns.filter(t => t.category === cat).reduce((s,t) => s+Math.abs(t.amount), 0);
   const s = monthData.summary;
   s.houseTotal = txns.filter(t=>t.sheet==='House').reduce((s,t)=>s+Math.abs(t.amount),0);
-  s.workTotal = txns.filter(t=>t.sheet==='Work').reduce((s,t)=>s+Math.abs(t.amount),0);
+  s.workTotal = sumWorkExpenses(txns);
   s.tonyContrib = sumCatT('Brother Transfer');
   s.peterContrib = s.houseTotal - s.tonyContrib;
   s.pay = sumCatT('Take Home Pay');
@@ -2878,7 +2895,8 @@ async function viewMonthDetailFromData(key, data) {
   const cats = {};
   getAllCatsSync().forEach(c => cats[c] = txns.filter(r=>r.category===c).reduce((s,r)=>s+Math.abs(r.amount),0));
 
-  data[key].summary = { ...d.summary, houseTotal, tonyContrib, peterContrib: houseTotal - tonyContrib, pay, personalSpend, investTotal, savings, netPosition, houseShare: houseShareVal, categories: cats };
+  const workTotal = sumWorkExpenses(txns);
+  data[key].summary = { ...d.summary, houseTotal, tonyContrib, peterContrib: houseTotal - tonyContrib, pay, personalSpend, investTotal, workTotal, savings, netPosition, houseShare: houseShareVal, categories: cats };
   await saveAllData(data, key);
   await renderDashboard();
 
