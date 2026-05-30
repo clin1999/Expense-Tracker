@@ -918,8 +918,8 @@ select:focus{outline:none;border-color:var(--accent)}
       <!-- Personal export -->
       <div class="card">
         <div style="display:flex;align-items:baseline;gap:.5rem;margin-bottom:.85rem">
-          <strong style="font-family:'Playfair Display',serif;font-size:1rem">Peters Personal Expenses</strong>
-          <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Peter only</span>
+          <strong style="font-family:'Playfair Display',serif;font-size:1rem" id="categorise-personal-title">Personal expenses</strong>
+          <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em" id="categorise-personal-badge">your account</span>
         </div>
         <p style="font-size:.8rem;color:var(--text2);margin-bottom:.85rem">Find the row for <span id="personal-month" style="font-weight:500;color:var(--text)"></span> and enter:</p>
         <div id="personal-export"></div>
@@ -996,8 +996,8 @@ select:focus{outline:none;border-color:var(--accent)}
 
     <div class="card">
       <div style="display:flex;align-items:baseline;gap:.5rem;margin-bottom:.85rem">
-        <strong style="font-family:'Playfair Display',serif;font-size:1rem">Peters Personal Expenses</strong>
-        <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Peter only</span>
+        <strong style="font-family:'Playfair Display',serif;font-size:1rem" id="history-personal-title">Personal expenses</strong>
+        <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em" id="history-personal-badge">your account</span>
       </div>
       <div id="detail-personal-export"></div>
     </div>
@@ -1111,12 +1111,12 @@ select:focus{outline:none;border-color:var(--accent)}
 
     <!-- Personal categories -->
     <div style="margin-bottom:1.25rem">
-      <div class="card-label" style="margin-bottom:.6rem">👤 Personal expenses (Peter)</div>
+      <div class="card-label" style="margin-bottom:.6rem" id="personal-cats-label">👤 Personal expenses</div>
       <div id="personal-cats-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
     </div>
 
     <!-- Work categories -->
-    <div>
+    <div id="work-cats-section">
       <div class="card-label" style="margin-bottom:.6rem">💼 Work expenses (reimbursable)</div>
       <div id="work-cats-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
     </div>
@@ -1310,31 +1310,96 @@ const DEFAULT_HOUSE_CATS = ['Groceries','Electricity','Water','Wifi','Council Ra
 const DEFAULT_PERSONAL_CATS = ['Eating Out','Jetts','Sharesies','Hatch','KiwiSaver','ASB Investment',
   'Take Home Pay','Brother Transfer','Work Reimbursement','Google One','Haircut','Health',
   'Transport','Travel','Shopping','2degrees Mobile','Royal NZ Fo','Other'];
+const DEFAULT_TONY_PERSONAL_CATS = ['Eating Out','Transport','Shopping','Health','Haircut','Insurance',
+  'Brother Transfer','Entertainment','Travel','2degrees Mobile','Other'];
 const DEFAULT_WORK_CATS = ['Work Expenses','Work Travel','Work Meals','Work Equipment'];
 
 let _catsCache = null;
+let _catsCacheForUser = null;
 
-async function loadCategories() {
-  if (_catsCache) return _catsCache;
+function userCategoriesRef(userId) {
+  return doc(db, 'users', userId || getUserId(), 'categories');
+}
+
+function defaultPersonalCatsFor(userId) {
+  return userId === 'tony' ? [...DEFAULT_TONY_PERSONAL_CATS] : [...DEFAULT_PERSONAL_CATS];
+}
+
+function defaultWorkCatsFor(userId) {
+  return userId === 'tony' ? [] : [...DEFAULT_WORK_CATS];
+}
+
+function invalidateCategoriesCache() {
+  _catsCache = null;
+  _catsCacheForUser = null;
+}
+
+async function loadCategories(userId) {
+  const uid = userId || getUserId();
+  if (_catsCache && _catsCacheForUser === uid) return _catsCache;
+
+  let house = [...DEFAULT_HOUSE_CATS];
+  let personal = defaultPersonalCatsFor(uid);
+  let work = defaultWorkCatsFor(uid);
+
   try {
-    const snap = await getDoc(doc(db, 'shared', 'categories'));
-    if (snap.exists()) {
-      _catsCache = snap.data();
-      if (!_catsCache.work) _catsCache.work = DEFAULT_WORK_CATS; // migrate old data
+    const sharedSnap = await getDoc(doc(db, 'shared', 'categories'));
+    const shared = sharedSnap.exists() ? sharedSnap.data() : {};
+    if (shared.house?.length) house = shared.house;
+
+    const userSnap = await getDoc(userCategoriesRef(uid));
+    if (userSnap.exists()) {
+      const u = userSnap.data();
+      if (u.personal?.length) personal = u.personal;
+      work = u.work ?? defaultWorkCatsFor(uid);
+    } else if (uid === 'peter' && shared.personal?.length) {
+      // One-time migration: Peter's list lived in shared/categories
+      personal = shared.personal;
+      work = shared.work?.length ? shared.work : [...DEFAULT_WORK_CATS];
+      await setDoc(userCategoriesRef('peter'), { personal, work });
+      await setDoc(doc(db, 'shared', 'categories'), { house });
     } else {
-      _catsCache = { house: DEFAULT_HOUSE_CATS, personal: DEFAULT_PERSONAL_CATS, work: DEFAULT_WORK_CATS };
+      await setDoc(userCategoriesRef(uid), { personal, work });
     }
+
+    _catsCache = { house, personal, work };
+    _catsCacheForUser = uid;
     return _catsCache;
-  } catch(e) {
-    return { house: DEFAULT_HOUSE_CATS, personal: DEFAULT_PERSONAL_CATS };
+  } catch (e) {
+    console.error('Categories load error:', e);
+    _catsCache = { house, personal, work };
+    _catsCacheForUser = uid;
+    return _catsCache;
   }
 }
 
 async function saveCategories(cats) {
+  const uid = getUserId();
   _catsCache = cats;
+  _catsCacheForUser = uid;
   try {
-    await setDoc(doc(db, 'shared', 'categories'), cats);
-  } catch(e) { console.error('Categories save error:', e); }
+    await setDoc(doc(db, 'shared', 'categories'), { house: cats.house });
+    await setDoc(userCategoriesRef(uid), {
+      personal: cats.personal,
+      work: cats.work ?? defaultWorkCatsFor(uid),
+    });
+  } catch (e) { console.error('Categories save error:', e); }
+}
+
+function updatePersonalCategoryLabels() {
+  const name = getCurrentUser() || 'You';
+  const uid = getUserId();
+  const label = `👤 Personal expenses (${name} only — not shared)`;
+  const el = document.getElementById('personal-cats-label');
+  if (el) el.textContent = label;
+  const title = document.getElementById('categorise-personal-title');
+  const badge = document.getElementById('categorise-personal-badge');
+  if (title) title.textContent = `${name}'s personal expenses`;
+  if (badge) badge.textContent = `${name} only`;
+  const workSection = document.getElementById('work-cats-section');
+  if (workSection) workSection.style.display = uid === 'tony' ? 'none' : 'block';
+  const workOpt = document.querySelector('#new-cat-sheet option[value="Work"]');
+  if (workOpt) workOpt.hidden = uid === 'tony';
 }
 
 async function getAllCats() {
@@ -1399,7 +1464,7 @@ async function showPage(p) {
   document.querySelectorAll('.nav-tab')[tabs.indexOf(p)].classList.add('active');
   if (p === 'dashboard') await renderDashboard();
   if (p === 'history') await renderHistory();
-  if (p === 'settings') await renderSettings();
+  if (p === 'settings') { invalidateCategoriesCache(); await renderSettings(); }
   if (p === 'iou') await renderIOU();
   if (p === 'formulae') renderFormulaeReference();
 }
@@ -1579,8 +1644,13 @@ async function goToPrompt() {
   currentMonthKey = monthKey(m, y);
 
   const cats = await loadCategories();
+  const uid = getUserId();
   const houseCatsList = cats.house.join(', ');
   const personalCatsList = cats.personal.join(', ');
+  const personalSpecial = uid === 'tony'
+    ? 'Brother Transfer (D/C FROM MR T LIN — your share of shared house costs — expense amount)'
+    : 'Take Home Pay (Cass Medical income — positive amount), Brother Transfer (D/C FROM MR T LIN — money from Tony), Work Reimbursement (employer reimbursing a work expense — positive credit from employer/work)';
+  const workBlock = uid === 'tony' ? '' : `WORK sheet (reimbursable work expenses): ${(cats.work || DEFAULT_WORK_CATS).join(', ')}\n`;
 
   // Build corrections block from memory
   const corrections = await loadCorrections();
@@ -1597,8 +1667,7 @@ Each object must have: date (DD/MM), description (short merchant name), amount (
 Categories:
 HOUSE sheet: ${houseCatsList}
 PERSONAL sheet: ${personalCatsList}
-WORK sheet (reimbursable work expenses): ${cats.work ? cats.work.join(', ') : DEFAULT_WORK_CATS.join(', ')}
-PERSONAL sheet special: Take Home Pay (Cass Medical income — positive amount), Brother Transfer (D/C FROM MR T LIN — money from Tony), Work Reimbursement (employer reimbursing a work expense — positive credit from employer/work)
+${workBlock}PERSONAL sheet special: ${personalSpecial}
 SKIP: credit card payments (PAYMENT - THANK YOU), ASB direct debit for credit card (D/D LIN C)
 ${correctionsBlock}
 Transactions:
@@ -1651,8 +1720,9 @@ function loadResults() {
 // allCats is now loaded dynamically from Firebase
 // Use getAllCats() async where needed, or _catsCache for sync contexts after load
 function getAllCatsSync() {
-  if (!_catsCache) return [...DEFAULT_HOUSE_CATS, ...DEFAULT_PERSONAL_CATS, ...DEFAULT_WORK_CATS];
-  return [..._catsCache.house, ..._catsCache.personal, ...(_catsCache.work||DEFAULT_WORK_CATS)];
+  const uid = getUserId();
+  if (!_catsCache) return [...DEFAULT_HOUSE_CATS, ...defaultPersonalCatsFor(uid), ...defaultWorkCatsFor(uid)];
+  return [..._catsCache.house, ..._catsCache.personal, ...(_catsCache.work || defaultWorkCatsFor(uid))];
 }
 function getHouseCatsSync() {
   if (!_catsCache) return DEFAULT_HOUSE_CATS;
@@ -1660,7 +1730,7 @@ function getHouseCatsSync() {
 }
 
 function getPersonalCatsSync() {
-  if (!_catsCache) return DEFAULT_PERSONAL_CATS;
+  if (!_catsCache) return defaultPersonalCatsFor(getUserId());
   return _catsCache.personal;
 }
 
@@ -1696,8 +1766,9 @@ function getPersonalExpenseCatNames() {
 }
 
 function getWorkCatsSync() {
-  if (!_catsCache) return DEFAULT_WORK_CATS;
-  return _catsCache.work || DEFAULT_WORK_CATS;
+  const uid = getUserId();
+  if (!_catsCache) return defaultWorkCatsFor(uid);
+  return _catsCache.work ?? defaultWorkCatsFor(uid);
 }
 
 function sumCat(cat, results) {
@@ -1809,34 +1880,41 @@ function buildStep4() {
     <tbody>${houseRows.map(r=>`<tr><td style="padding:9px 10px;font-weight:500">${r[0]}</td><td class="col-val" style="padding:9px 10px">${r[1].toFixed(2)}</td><td class="col-note" style="padding:9px 10px">${r[2]}</td></tr>`).join('')}</tbody>
   </table>` : '<p style="font-size:.875rem;color:var(--text3)">No house expenses found.</p>';
 
-  const eating=sumCat('Eating Out'),jetts=sumCat('Jetts'),sharesies=sumCat('Sharesies'),
-    hatch=sumCat('Hatch'),ks=sumCat('KiwiSaver'),asbInv=sumCat('ASB Investment'),
-    google=sumCat('Google One'),haircut=sumCat('Haircut'),health=sumCat('Health'),
-    transport=sumCat('Transport'),shopping=sumCat('Shopping'),travel=sumCat('Travel'),
-    royalNZ=sumCat('Royal NZ Fo'),mobile=sumCat('2degrees Mobile'),other=sumCat('Other');
-  const totalExcInv=eating+jetts+google+haircut+health+transport+shopping+royalNZ+other+mobile;
-  const totalInv=sharesies+hatch+ks+asbInv;
-  const totalExpense=totalExcInv+totalInv;
-  const houseShareCalc = houseTotal/2;
+  const expenseCats = getPersonalExpenseCatNames();
+  const investCats = INVESTMENT_CAT_NAMES.filter(c => getPersonalCatsSync().includes(c));
+  let totalExcInv = 0;
+  const pRows = expenseCats.map(c => {
+    const v = sumCat(c);
+    totalExcInv += v;
+    return [c, v];
+  }).filter(([, v]) => v !== 0);
+  let totalInv = 0;
+  investCats.forEach(c => {
+    const v = sumCat(c);
+    if (v) {
+      totalInv += v;
+      pRows.push([`(+) ${c}`, v]);
+    }
+  });
+  const totalExpense = totalExcInv + totalInv;
+  const houseShareCalc = houseTotal / 2;
   const savingsCalc = pay - totalExcInv - houseShareCalc;
   const netPositionCalc = savingsCalc + totalInv;
-
-  const pRows=[['Eating out',eating],['Jetts',jetts],['(+) Sharesies',sharesies],['(+) Hatch',hatch],
-    ['(+) KS (KiwiSaver)',ks],['(+) ASB investment fund',asbInv],['Google One',google],
-    ['Haircut',haircut],['Health',health],['Transport/parking',transport],['Shopping',shopping],
-    ['Travel',travel],['Royal New Zealand Fo',royalNZ],['Other',other],
-    ['Take Home pay',pay],['Total (excl investment)',totalExcInv],['Total expense',totalExpense],['Savings',savingsCalc]
-  ].filter(r=>r[1]!==0);
+  if (pay) pRows.push(['Take Home pay', pay]);
+  pRows.push(['Total (excl investment)', totalExcInv], ['Total expense', totalExpense], ['Savings', savingsCalc]);
+  const pRowsFiltered = pRows.filter(([label, v]) =>
+    label.startsWith('Total') || label === 'Savings' || label === 'Take Home pay' || v !== 0);
 
   document.getElementById('personal-export').innerHTML = `<table class="export-table">
     <thead><tr style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)"><td style="padding:6px 10px">Column</td><td style="padding:6px 10px">Value</td></tr></thead>
-    <tbody>${pRows.map(r=>`<tr><td style="padding:9px 10px;font-weight:500">${r[0]}</td><td class="${r[1]<0?'col-val col-neg':'col-val'}" style="padding:9px 10px">${r[1].toFixed(2)}</td></tr>`).join('')}</tbody>
+    <tbody>${pRowsFiltered.map(r=>`<tr><td style="padding:9px 10px;font-weight:500">${r[0]}</td><td class="${r[1]<0?'col-val col-neg':'col-val'}" style="padding:9px 10px">${r[1].toFixed(2)}</td></tr>`).join('')}</tbody>
   </table>`;
+  updatePersonalCategoryLabels();
 
   // Work export
   const workTxns = categorisedResults.filter(r => isWorkExpense(r));
   const workCard = document.getElementById('work-export-card');
-  if (workTxns.length) {
+  if (workTxns.length && getUserId() !== 'tony') {
     workCard.style.display = 'block';
     const workTotal = workTxns.reduce((s,r) => s + Math.abs(r.amount), 0);
     document.getElementById('work-export').innerHTML = `
@@ -1875,16 +1953,9 @@ async function _doSave() {
   const houseTotal = categorisedResults.filter(r=>r.sheet==='House').reduce((s,r)=>s+Math.abs(r.amount),0);
   const tonyContrib = sumCat('Brother Transfer');
   const pay = sumCat('Take Home Pay');
-  const eating=sumCat('Eating Out'), groceries=sumCat('Groceries'),
-    electricity=sumCat('Electricity'), wifi=sumCat('Wifi'),
-    sharesies=sumCat('Sharesies'), hatch=sumCat('Hatch'),
-    ks=sumCat('KiwiSaver'), asbInv=sumCat('ASB Investment'),
-    jetts=sumCat('Jetts'), google=sumCat('Google One'),
-    haircut=sumCat('Haircut'), health=sumCat('Health'),
-    transport=sumCat('Transport'), shopping=sumCat('Shopping'),
-    travel=sumCat('Travel'), water=sumCat('Water'),
-    council=sumCat('Council Rates'), insurance=sumCat('Insurance');
-  const investTotal = sharesies+hatch+ks+asbInv;
+  const categories = {};
+  getAllCatsSync().forEach(c => { categories[c] = sumCat(c); });
+  const investTotal = INVESTMENT_CAT_NAMES.reduce((s, c) => s + (categories[c] || 0), 0);
   const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!PERSONAL_SPEND_EXCLUDED.includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const workTotal = categorisedResults.filter(r=>isWorkExpense(r)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const houseShareSave = houseTotal / 2;
@@ -1900,14 +1971,7 @@ async function _doSave() {
     summary: {
       houseTotal, tonyContrib, peterContrib: houseTotal - tonyContrib,
       pay, personalSpend, investTotal, workTotal, savings, netPosition, houseShare: houseShareSave,
-      categories: {
-        Groceries:groceries, Electricity:electricity, Water:water,
-        'Council Rates':council, Wifi:wifi, Insurance:insurance,
-        'Eating Out':eating, Jetts:jetts, Sharesies:sharesies,
-        Hatch:hatch, KiwiSaver:ks, 'ASB Investment':asbInv,
-        'Google One':google, Haircut:haircut, Health:health,
-        Transport:transport, Shopping:shopping, Travel:travel
-      }
+      categories
     }
   };
   await saveAllData(data, currentMonthKey);
@@ -2614,7 +2678,7 @@ async function refreshDashboard() {
   btn.disabled = true;
   icon.style.animation = 'spin .7s linear infinite';
   _cache = {};
-  _catsCache = null;
+  invalidateCategoriesCache();
   await renderDashboard();
   icon.style.animation = '';
   btn.disabled = false;
@@ -2904,6 +2968,7 @@ function rebuildMonthSummary(monthData) {
 async function viewMonthDetailFromData(key, data) {
   const d = data[key];
   if (!d) return;
+  updatePersonalCategoryLabels();
   const investCats = ['Sharesies','Hatch','KiwiSaver','ASB Investment'];
   const skipCats = ['Take Home Pay','Brother Transfer','Work Reimbursement',...investCats];
   const txns = d.transactions;
@@ -3053,6 +3118,7 @@ async function doLogin() {
 async function doSignOut() {
   if (!confirm('Sign out?')) return;
   _cache = {};
+  invalidateCategoriesCache();
   _currentAuthUser = null;
   await signOut(auth);
   updateUserPill('');
@@ -3196,9 +3262,12 @@ function unsplitTransaction(originalIdx) {
 // ═══════════════════════════
 async function renderSettings() {
   const cats = await loadCategories();
+  updatePersonalCategoryLabels();
   renderCatPills('house-cats-list', cats.house, 'House');
   renderCatPills('personal-cats-list', cats.personal, 'Personal');
-  renderCatPills('work-cats-list', cats.work || DEFAULT_WORK_CATS, 'Work');
+  if (getUserId() !== 'tony') {
+    renderCatPills('work-cats-list', cats.work || DEFAULT_WORK_CATS, 'Work');
+  }
   await renderCorrectionsLog();
 }
 
@@ -3222,15 +3291,21 @@ async function addCategory() {
   const sheet = document.getElementById('new-cat-sheet').value;
   if (!name) return;
   const cats = await loadCategories();
-  if (!cats.work) cats.work = DEFAULT_WORK_CATS;
-  const allExisting = [...cats.house, ...cats.personal, ...cats.work];
-  if (allExisting.some(c => c.toLowerCase() === name.toLowerCase())) {
+  if (!cats.work) cats.work = defaultWorkCatsFor(getUserId());
+  const scope = sheet === 'House'
+    ? cats.house
+    : sheet === 'Work'
+      ? (cats.work || [])
+      : cats.personal;
+  if (scope.some(c => c.toLowerCase() === name.toLowerCase())) {
     alert('That category already exists.');
     return;
   }
   if (sheet === 'House') cats.house.push(name);
-  else if (sheet === 'Work') cats.work.push(name);
-  else cats.personal.push(name);
+  else if (sheet === 'Work') {
+    if (!cats.work) cats.work = [];
+    cats.work.push(name);
+  } else cats.personal.push(name);
   await saveCategories(cats);
   document.getElementById('new-cat-name').value = '';
   showCorrectionToast(`Added "${name}" to ${sheet} categories`);
@@ -3806,11 +3881,14 @@ onAuthStateChanged(auth, async (user) => {
     // Reset button state
     const btn = document.getElementById('login-btn');
     if (btn) { btn.disabled = false; btn.textContent = 'Sign in'; }
+    invalidateCategoriesCache();
     await loadCategories();
+    updatePersonalCategoryLabels();
     await renderDashboard();
   } else {
     _currentAuthUser = null;
     _cache = {};
+    invalidateCategoriesCache();
     showLoginScreen();
   }
 });
