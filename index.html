@@ -1376,7 +1376,8 @@ async function loadCategories(userId) {
     if (userSnap.exists()) {
       const u = userSnap.data();
       if (Array.isArray(u.personal)) personal = u.personal;
-      work = u.work ?? defaultWorkCatsFor(uid);
+      if (Array.isArray(u.work)) work = u.work;
+      else work = defaultWorkCatsFor(uid);
     } else if (uid === 'peter' && shared.personal?.length) {
       // One-time migration: Peter's list lived in shared/categories
       personal = shared.personal;
@@ -1489,7 +1490,7 @@ async function showPage(p) {
   document.querySelectorAll('.nav-tab')[tabs.indexOf(p)].classList.add('active');
   if (p === 'dashboard') await renderDashboard();
   if (p === 'history') await renderHistory();
-  if (p === 'settings') { invalidateCategoriesCache(); await renderSettings(); }
+  if (p === 'settings') await renderSettings();
   if (p === 'iou') await renderIOU();
   if (p === 'formulae') renderFormulaeReference();
 }
