@@ -539,13 +539,27 @@ select:focus{outline:none;border-color:var(--accent)}
 .tag-tony  { background:var(--blue-l); color:var(--blue); }
 .tag-other { background:var(--surface2); color:var(--text2); }
 
-@media(max-width:600px){
-  nav{padding:0 1rem}
-  .page{padding:1.25rem 1rem 4rem}
-  .result-row{grid-template-columns:60px 1fr 70px}
-  .result-row .hide-mobile{display:none}
-  .nav-brand{display:none}
+.preview-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 80px 70px;
+  gap: 6px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  font-size: .68rem;
 }
+.preview-row:last-child { border-bottom: none; }
+.preview-header {
+  background: var(--surface2);
+  font-family: 'DM Mono', monospace;
+  font-size: .6rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text3);
+  position: sticky;
+  top: 0;
+}
+
 </style>
 </head>
 <body>
@@ -830,6 +844,16 @@ select:focus{outline:none;border-color:var(--accent)}
       </div>
       <div id="file-chips" style="display:none;margin-bottom:.75rem"></div>
 
+      <!-- File preview panel -->
+      <div id="file-preview" style="display:none;margin-bottom:.85rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+          <span style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text3)">Data preview</span>
+          <button onclick="togglePreview()" id="preview-toggle-btn" class="btn btn-secondary" style="padding:.25rem .65rem;font-size:.62rem">Hide</button>
+        </div>
+        <div id="file-preview-table" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;max-height:220px;overflow-y:auto;font-family:'DM Mono',monospace;font-size:.7rem"></div>
+        <div id="file-preview-meta" style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3);margin-top:.4rem"></div>
+      </div>
+
       <!-- Paste fallback toggle -->
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem">
         <button class="btn btn-secondary" style="padding:.35rem .85rem;font-size:.65rem" onclick="togglePaste()">Or paste manually</button>
@@ -859,6 +883,7 @@ select:focus{outline:none;border-color:var(--accent)}
   <!-- Step 2 -->
   <div id="inner-step2" class="inner-section">
     <div class="card">
+      <div id="multi-month-banner" class="warning" style="display:none;margin-bottom:1rem"></div>
       <div class="steps">
         <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Copy the prompt below</strong><p>Everything is included — your transactions and categorisation instructions.</p></div></div>
         <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Paste into Claude</strong><p>Open <a href="https://claude.ai" target="_blank" style="color:var(--accent)">claude.ai</a> in a new tab and send the prompt. Claude replies with a JSON array.</p></div></div>
@@ -1105,7 +1130,7 @@ select:focus{outline:none;border-color:var(--accent)}
 
     <!-- House categories -->
     <div style="margin-bottom:1.25rem">
-      <div class="card-label" style="margin-bottom:.6rem">🏠 House expenses (your own list)</div>
+      <div class="card-label" style="margin-bottom:.6rem">🏠 House expenses (shared with Tony)</div>
       <div id="house-cats-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
     </div>
 
@@ -1305,18 +1330,28 @@ async function saveCorrections(list) {
   } catch(e) { console.error('Corrections save error:', e); }
 }
 
-// Category management — fully per-user, no shared storage
+// Category management
 const DEFAULT_HOUSE_CATS = ['Groceries','Electricity','Water','Wifi','Council Rates','Insurance'];
 const DEFAULT_PERSONAL_CATS = ['Eating Out','Jetts','Sharesies','Hatch','KiwiSaver','ASB Investment',
   'Take Home Pay','Brother Transfer','Work Reimbursement','Google One','Haircut','Health',
   'Transport','Travel','Shopping','2degrees Mobile','Royal NZ Fo','Other'];
+const DEFAULT_TONY_PERSONAL_CATS = ['Eating Out','Transport','Shopping','Health','Haircut','Insurance',
+  'Brother Transfer','Entertainment','Travel','2degrees Mobile','Other'];
 const DEFAULT_WORK_CATS = ['Work Expenses','Work Travel','Work Meals','Work Equipment'];
 
 let _catsCache = null;
 let _catsCacheForUser = null;
 
 function userCategoriesRef(userId) {
-  return doc(db, 'users', userId || getUserId(), 'settings', 'categories');
+  return doc(db, 'users', userId || getUserId(), 'categories');
+}
+
+function defaultPersonalCatsFor(userId) {
+  return userId === 'tony' ? [...DEFAULT_TONY_PERSONAL_CATS] : [...DEFAULT_PERSONAL_CATS];
+}
+
+function defaultWorkCatsFor(userId) {
+  return userId === 'tony' ? [] : [...DEFAULT_WORK_CATS];
 }
 
 function invalidateCategoriesCache() {
@@ -1328,36 +1363,38 @@ async function loadCategories(userId) {
   const uid = userId || getUserId();
   if (_catsCache && _catsCacheForUser === uid) return _catsCache;
 
+  let house = [...DEFAULT_HOUSE_CATS];
+  let personal = defaultPersonalCatsFor(uid);
+  let work = defaultWorkCatsFor(uid);
+
   try {
-    const snap = await getDoc(userCategoriesRef(uid));
-    if (snap.exists()) {
-      const d = snap.data();
-      // User has saved their own categories — use exactly what's stored
-      _catsCache = {
-        house: d.house ?? [...DEFAULT_HOUSE_CATS],
-        personal: d.personal ?? [...DEFAULT_PERSONAL_CATS],
-        work: d.work ?? [...DEFAULT_WORK_CATS]
-      };
+    const sharedSnap = await getDoc(doc(db, 'shared', 'categories'));
+    const shared = sharedSnap.exists() ? sharedSnap.data() : {};
+    if (Array.isArray(shared.house)) house = shared.house;
+
+    const userSnap = await getDoc(userCategoriesRef(uid));
+    if (userSnap.exists()) {
+      const u = userSnap.data();
+      if (Array.isArray(u.personal)) personal = u.personal;
+      work = u.work ?? defaultWorkCatsFor(uid);
+    } else if (uid === 'peter' && shared.personal?.length) {
+      // One-time migration: Peter's list lived in shared/categories
+      personal = shared.personal;
+      work = shared.work?.length ? shared.work : [...DEFAULT_WORK_CATS];
+      await setDoc(userCategoriesRef('peter'), { personal, work });
+      await setDoc(doc(db, 'shared', 'categories'), { house });
     } else {
-      // First time this user has loaded — write defaults once
-      const defaults = {
-        house: [...DEFAULT_HOUSE_CATS],
-        personal: [...DEFAULT_PERSONAL_CATS],
-        work: [...DEFAULT_WORK_CATS]
-      };
-      await setDoc(userCategoriesRef(uid), defaults);
-      _catsCache = defaults;
+      await setDoc(userCategoriesRef(uid), { personal, work });
     }
+
+    _catsCache = { house, personal, work };
     _catsCacheForUser = uid;
     return _catsCache;
-  } catch(e) {
+  } catch (e) {
     console.error('Categories load error:', e);
-    // Fallback to defaults without writing, so we retry next time
-    return {
-      house: [...DEFAULT_HOUSE_CATS],
-      personal: [...DEFAULT_PERSONAL_CATS],
-      work: [...DEFAULT_WORK_CATS]
-    };
+    _catsCache = { house, personal, work };
+    _catsCacheForUser = uid;
+    return _catsCache;
   }
 }
 
@@ -1366,12 +1403,12 @@ async function saveCategories(cats) {
   _catsCache = cats;
   _catsCacheForUser = uid;
   try {
+    await setDoc(doc(db, 'shared', 'categories'), { house: cats.house });
     await setDoc(userCategoriesRef(uid), {
-      house: cats.house,
       personal: cats.personal,
-      work: cats.work ?? [...DEFAULT_WORK_CATS]
+      work: cats.work ?? defaultWorkCatsFor(uid),
     });
-  } catch(e) { console.error('Categories save error:', e); }
+  } catch (e) { console.error('Categories save error:', e); }
 }
 
 function updatePersonalCategoryLabels() {
@@ -1526,6 +1563,7 @@ async function handleFiles(files) {
     addChip(name, loadedFileContents.length - 1);
   }
   updateDropZone();
+  renderFilePreview();
   // Auto-detect month/year from file content
   const combined = loadedFileContents.join('\n');
   const dateMatch = combined.match(/20(\d\d)\/(\d\d)\/\d\d/);
@@ -1554,6 +1592,91 @@ function removeFile(idx) {
   document.getElementById('file-chips').innerHTML = '';
   loadedFileContents.forEach((_, i) => addChip(`File ${i+1}`, i));
   updateDropZone();
+  renderFilePreview();
+}
+
+let _previewVisible = true;
+
+function togglePreview() {
+  _previewVisible = !_previewVisible;
+  const table = document.getElementById('file-preview-table');
+  const btn = document.getElementById('preview-toggle-btn');
+  if (table) table.style.display = _previewVisible ? '' : 'none';
+  if (btn) btn.textContent = _previewVisible ? 'Hide' : 'Show';
+}
+
+function renderFilePreview() {
+  const panel = document.getElementById('file-preview');
+  const tableEl = document.getElementById('file-preview-table');
+  const metaEl = document.getElementById('file-preview-meta');
+  if (!panel || !tableEl) return;
+
+  const combined = loadedFileContents.join('\n');
+  if (!combined.trim()) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  // Parse rows from ASB CSV format
+  const lines = combined.split('\n').map(l => l.trim()).filter(Boolean);
+  const rows = [];
+  for (const line of lines) {
+    // Skip header/meta lines
+    if (line.startsWith('Card Number') || line.startsWith('Date Processed') || line.startsWith('Date,Unique')) continue;
+    const cols = line.split(',');
+    if (cols.length < 5) continue;
+
+    // Credit card format: Date Processed, Date of Transaction, Unique Id, Tran Type, Reference, Description, Amount
+    // Streamline format: Date, Unique Id, Tran Type, Cheque, Payee, Memo, Amount
+    let date = '', desc = '', amount = '';
+    if (cols[0].match(/^\d{4}\/\d{2}\/\d{2}$/) && cols.length >= 7) {
+      // Credit card: col[1]=txn date, col[5]=desc, col[6]=amount
+      date = cols[1]?.trim() || cols[0]?.trim();
+      desc = cols[5]?.trim() || '';
+      amount = cols[6]?.trim() || '';
+    } else if (cols[0].match(/^\d{4}\/\d{2}\/\d{2}$/)) {
+      // Streamline: col[0]=date, col[4]=payee, col[5]=memo, col[6]=amount
+      date = cols[0]?.trim();
+      desc = (cols[4]?.trim() || '') + (cols[5]?.trim() ? ' ' + cols[5].trim() : '');
+      amount = cols[6]?.trim() || '';
+    } else continue;
+
+    if (!date || !desc) continue;
+    rows.push({ date, desc: desc.slice(0, 40), amount });
+  }
+
+  if (!rows.length) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  // Count months
+  const months = new Set();
+  rows.forEach(r => {
+    const m = r.date.match(/\d{4}\/(\d{2})\//);
+    if (m) months.add(m[1]);
+  });
+
+  const PREVIEW_LIMIT = 50;
+  const shown = rows.slice(0, PREVIEW_LIMIT);
+  let html = `<div class="preview-row preview-header"><span>Date</span><span>Description</span><span>Amount</span><span>Type</span></div>`;
+  shown.forEach(r => {
+    const isCredit = parseFloat(r.amount) > 0;
+    html += `<div class="preview-row">
+      <span style="color:var(--text3)">${r.date}</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.desc}</span>
+      <span style="font-weight:500;color:${isCredit ? 'var(--accent)' : 'var(--text)'}">${r.amount}</span>
+      <span style="color:var(--text3)">${isCredit ? 'credit' : 'debit'}</span>
+    </div>`;
+  });
+
+  tableEl.innerHTML = html;
+  metaEl.textContent = `${rows.length} transactions · ${months.size} month${months.size !== 1 ? 's' : ''}${rows.length > PREVIEW_LIMIT ? ` · showing first ${PREVIEW_LIMIT}` : ''}`;
+  _previewVisible = true;
+  const btn = document.getElementById('preview-toggle-btn');
+  if (btn) btn.textContent = 'Hide';
+  tableEl.style.display = '';
+  panel.style.display = 'block';
 }
 
 // Wire up drop zone events
@@ -1616,9 +1739,11 @@ Date,Unique Id,Tran Type,Cheque,Payee,Memo,Amount
   // Show paste area and load sample into it
   document.getElementById('paste-area').style.display = 'block';
   document.getElementById('raw-data').value = sample;
-  // Clear any dropped files
+  // Clear any dropped files and preview
   loadedFileContents = [];
   document.getElementById('file-chips').innerHTML = '';
+  const prevPanel = document.getElementById('file-preview');
+  if (prevPanel) prevPanel.style.display = 'none';
   updateDropZone();
   document.getElementById('month-select').value = 'Mar';
   document.getElementById('year-select').value = '2026';
@@ -1630,6 +1755,17 @@ async function goToPrompt() {
   const m = document.getElementById('month-select').value;
   const y = document.getElementById('year-select').value;
   currentMonthKey = monthKey(m, y);
+
+  // Detect if data spans multiple months
+  const dateMatches = [...raw.matchAll(/20\d\d\/(\d\d)\/\d\d/g)];
+  const uniqueMonths = [...new Set(dateMatches.map(d => d[1]))];
+  const multiMonthBanner = document.getElementById('multi-month-banner');
+  if (uniqueMonths.length > 1 && multiMonthBanner) {
+    multiMonthBanner.style.display = 'block';
+    multiMonthBanner.textContent = `⚠ Transactions from ${uniqueMonths.length} months detected — Claude will split them by month automatically when you load results.`;
+  } else if (multiMonthBanner) {
+    multiMonthBanner.style.display = 'none';
+  }
 
   const cats = await loadCategories();
   const uid = getUserId();
@@ -1648,9 +1784,9 @@ async function goToPrompt() {
     correctionsBlock = `\nPREVIOUSLY CORRECTED — apply these exact categories (they override the rules above):\n${lines}\n`;
   }
 
-  const prompt = `Please categorise these ASB bank transactions for ${m} ${y} and return ONLY a JSON array with no other text, no markdown fences.
+  const prompt = `Please categorise these ASB bank transactions and return ONLY a JSON array with no other text, no markdown fences.
 
-Each object must have: date (DD/MM), description (short merchant name), amount (positive=expense, negative=income), category, sheet ("House" or "Personal" or "Work" or "Skip"), notes.
+Each object must have: date (DD/MM/YYYY — include full year), description (short merchant name), amount (positive=expense, negative=income), category, sheet ("House" or "Personal" or "Work" or "Skip"), notes.
 
 Categories:
 HOUSE sheet: ${houseCatsList}
@@ -1691,14 +1827,65 @@ function loadResults() {
     const clean = raw.replace(/```json|```/g,'').trim();
     const s = clean.indexOf('['), e = clean.lastIndexOf(']');
     if (s === -1) throw new Error('No JSON array found');
-    categorisedResults = JSON.parse(clean.substring(s, e+1)).filter(r => r.sheet !== 'Skip');
-    buildStep4();
-    autoSaveMonth();
-    // Show auto-save confirmation
-    const sc = document.getElementById('save-confirm');
-    sc.style.display = 'inline';
-    sc.textContent = '✓ Auto-saved!';
-    switchInner('step4');
+    const parsed = JSON.parse(clean.substring(s, e+1)).filter(r => r.sheet !== 'Skip');
+
+    // Detect multi-month: check if dates contain year info (DD/MM/YYYY) and span multiple months
+    const monthGroups = {};
+    const monthNames = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'May',6:'Jun',7:'Jul',8:'Aug',9:'Sep',10:'Oct',11:'Nov',12:'Dec'};
+    let isMultiMonth = false;
+    parsed.forEach(r => {
+      // Support DD/MM/YYYY or DD/MM
+      const fullMatch = r.date && r.date.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      const shortMatch = r.date && r.date.match(/^(\d{2})\/(\d{2})$/);
+      let mk = currentMonthKey;
+      if (fullMatch) {
+        const day = fullMatch[1], mon = fullMatch[2], yr = fullMatch[3];
+        mk = `${yr}-${mon}`;
+        r.date = `${day}/${mon}`; // normalise to DD/MM for display
+      }
+      if (!monthGroups[mk]) monthGroups[mk] = [];
+      monthGroups[mk].push(r);
+    });
+
+    const groupKeys = Object.keys(monthGroups).sort();
+    isMultiMonth = groupKeys.length > 1;
+
+    if (isMultiMonth) {
+      // Save each month separately and show summary
+      categorisedResults = parsed; // keep all for display
+      currentMonthKey = groupKeys[groupKeys.length - 1]; // point to latest month
+      (async () => {
+        for (const mk of groupKeys) {
+          const prevKey = currentMonthKey;
+          currentMonthKey = mk;
+          categorisedResults = monthGroups[mk];
+          await _doSave();
+          currentMonthKey = prevKey;
+        }
+        // Restore to latest month for step 4 display
+        currentMonthKey = groupKeys[groupKeys.length - 1];
+        categorisedResults = monthGroups[currentMonthKey];
+        buildStep4();
+        const sc = document.getElementById('save-confirm');
+        sc.style.display = 'inline';
+        sc.textContent = `✓ Saved ${groupKeys.length} months: ${groupKeys.map(k => monthLabel(k)).join(', ')}`;
+      })();
+      switchInner('step4');
+      // Show multi-month notice
+      const mb = document.getElementById('multi-month-banner');
+      if (mb) {
+        mb.style.display = 'block';
+        mb.textContent = `✓ Multi-month file detected — transactions split across ${groupKeys.length} months: ${groupKeys.map(k=>monthLabel(k)).join(', ')}. Viewing ${monthLabel(currentMonthKey)}.`;
+      }
+    } else {
+      categorisedResults = parsed;
+      buildStep4();
+      autoSaveMonth();
+      const sc = document.getElementById('save-confirm');
+      sc.style.display = 'inline';
+      sc.textContent = '✓ Auto-saved!';
+      switchInner('step4');
+    }
   } catch(err) {
     errEl.textContent = 'Could not parse — make sure you copied the full JSON array from Claude.';
     errEl.style.display = 'inline';
@@ -1709,8 +1896,8 @@ function loadResults() {
 // Use getAllCats() async where needed, or _catsCache for sync contexts after load
 function getAllCatsSync() {
   const uid = getUserId();
-  if (!_catsCache) return [...DEFAULT_HOUSE_CATS, ...DEFAULT_PERSONAL_CATS, ...DEFAULT_WORK_CATS];
-  return [..._catsCache.house, ..._catsCache.personal, ...(_catsCache.work || DEFAULT_WORK_CATS)];
+  if (!_catsCache) return [...DEFAULT_HOUSE_CATS, ...defaultPersonalCatsFor(uid), ...defaultWorkCatsFor(uid)];
+  return [..._catsCache.house, ..._catsCache.personal, ...(_catsCache.work || defaultWorkCatsFor(uid))];
 }
 function getHouseCatsSync() {
   if (!_catsCache) return DEFAULT_HOUSE_CATS;
@@ -1718,7 +1905,7 @@ function getHouseCatsSync() {
 }
 
 function getPersonalCatsSync() {
-  if (!_catsCache) return [...DEFAULT_PERSONAL_CATS];
+  if (!_catsCache) return defaultPersonalCatsFor(getUserId());
   return _catsCache.personal;
 }
 
@@ -1755,8 +1942,8 @@ function getPersonalExpenseCatNames() {
 
 function getWorkCatsSync() {
   const uid = getUserId();
-  if (!_catsCache) return [...DEFAULT_WORK_CATS];
-  return _catsCache.work ?? [...DEFAULT_WORK_CATS];
+  if (!_catsCache) return defaultWorkCatsFor(uid);
+  return _catsCache.work ?? defaultWorkCatsFor(uid);
 }
 
 function sumCat(cat, results) {
@@ -1832,20 +2019,20 @@ function buildStep4() {
   `;
 
   // Results table
-  let html = `<div class="result-row result-header" style="grid-template-columns:68px 1fr 80px 138px 70px 60px"><span>Date</span><span>Description</span><span>Amount</span><span class="hide-mobile">Category</span><span class="hide-mobile">Sheet</span><span class="hide-mobile"></span></div>`;
+  let html = `<div class="result-row result-header" style="grid-template-columns:68px 1fr 80px 138px 70px 80px"><span>Date</span><span>Description</span><span>Amount</span><span class="hide-mobile">Category</span><span class="hide-mobile">Sheet</span><span class="hide-mobile"></span></div>`;
   categorisedResults.forEach((r,i) => {
     const isIncome = r.amount < 0;
     const isSplit = r._splitFrom !== undefined;
-    html += `<div class="result-row" style="grid-template-columns:68px 1fr 80px 138px 70px 60px;${isSplit?'background:var(--accent-l);':''}">
+    html += `<div class="result-row" style="grid-template-columns:68px 1fr 80px 138px 70px 80px;${isSplit?'background:var(--accent-l);':''}">
       <span style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--text3)">${r.date||''}</span>
       <span style="font-size:.8rem">${isSplit?'↳ ':''}<span style="${isSplit?'color:var(--accent)':''}">${r.description}</span></span>
       <span style="font-family:'DM Mono',monospace;font-size:.78rem;font-weight:500;color:${isIncome?'var(--accent)':'var(--text)'}">$${Math.abs(r.amount).toFixed(2)}</span>
       <span class="hide-mobile"><select class="cat-select" onchange="updateResultCat(${i}, this)">${getAllCatsSync().map(c=>`<option value="${c}"${r.category===c?' selected':''}>${c}</option>`).join('')}</select></span>
       <span class="hide-mobile" id="sheet-badge-${i}"><span class="badge badge-${r.sheet==='House'?'house':r.sheet==='Work'?'work':'personal'}">${r.sheet}</span></span>
-      <span class="hide-mobile">${isSplit
+      <span class="hide-mobile" style="display:flex;gap:4px;align-items:center">${isSplit
         ? `<button onclick="unsplitTransaction(${r._splitFrom})" title="Unsplit" style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text3);font-family:'DM Mono',monospace;padding:2px 4px;border-radius:4px;border:1px solid var(--border)" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">unsplit</button>`
         : `<button onclick="openSplitModal(${i})" title="Split this transaction" style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text3);font-family:'DM Mono',monospace;padding:2px 4px;border-radius:4px;border:1px solid var(--border)" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'">split</button>`
-      }</span>
+      }<button onclick="deleteResultRow(${i})" title="Delete this transaction" style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text3);font-family:'DM Mono',monospace;padding:2px 4px;border-radius:4px;border:1px solid var(--border)" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">✕</button></span>
     </div>`;
   });
   document.getElementById('results-table-wrap').innerHTML = html;
@@ -2829,14 +3016,14 @@ async function viewMonthDetail(key) {
 async function renderDetailTxnTable(key) {
   const data = await loadAllData();
   const txns = data[key]?.transactions || [];
-  let thtml = `<div class="result-row result-header" style="grid-template-columns:68px 1fr 80px 138px 70px 60px">
+  let thtml = `<div class="result-row result-header" style="grid-template-columns:68px 1fr 80px 138px 70px 80px">
     <span>Date</span><span>Description</span><span>Amount</span>
     <span class="hide-mobile">Category</span><span class="hide-mobile">Sheet</span><span class="hide-mobile"></span>
   </div>`;
   txns.forEach((r, i) => {
     const isIncome = r.amount < 0;
     const isSplit = r._splitFrom !== undefined;
-    thtml += `<div class="result-row" style="grid-template-columns:68px 1fr 80px 138px 70px 60px;${isSplit?'background:var(--accent-l);':''}">
+    thtml += `<div class="result-row" style="grid-template-columns:68px 1fr 80px 138px 70px 80px;${isSplit?'background:var(--accent-l);':''}">
       <span style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--text3)">${r.date||''}</span>
       <span style="font-size:.8rem">${isSplit?'↳ ':''}<span style="${isSplit?'color:var(--accent)':''}">${r.description}</span></span>
       <span style="font-family:'DM Mono',monospace;font-size:.78rem;font-weight:500;color:${isIncome?'var(--accent)':'var(--text)'}">$${Math.abs(r.amount).toFixed(2)}</span>
@@ -2848,7 +3035,7 @@ async function renderDetailTxnTable(key) {
       <span class="hide-mobile" id="detail-badge-${key}-${i}">
         <span class="badge badge-${r.sheet==='House'?'house':r.sheet==='Work'?'work':'personal'}">${r.sheet}</span>
       </span>
-      <span class="hide-mobile">
+      <span class="hide-mobile" style="display:flex;gap:4px;align-items:center">
         ${isSplit
           ? `<button onclick="unsplitDetailTransaction('${key}',${r._splitFrom})" title="Unsplit"
               style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text3);font-family:'DM Mono',monospace;padding:2px 4px;border-radius:4px;border:1px solid var(--border)"
@@ -2857,6 +3044,9 @@ async function renderDetailTxnTable(key) {
               style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text3);font-family:'DM Mono',monospace;padding:2px 4px;border-radius:4px;border:1px solid var(--border)"
               onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'">split</button>`
         }
+        <button onclick="deleteDetailRow('${key}',${i})" title="Delete this transaction"
+          style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text3);font-family:'DM Mono',monospace;padding:2px 4px;border-radius:4px;border:1px solid var(--border)"
+          onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">✕</button>
       </span>
     </div>`;
   });
@@ -2930,6 +3120,29 @@ async function unsplitDetailTransaction(key, originalIdx) {
   rebuildMonthSummary(data[key]);
   await saveAllData(data, key);
   showCorrectionToast('Transaction unsplit');
+  await renderDetailTxnTable(key);
+  viewMonthDetailFromData(key, data);
+}
+
+async function deleteDetailRow(key, idx) {
+  const data = await loadAllData();
+  if (!data[key]) return;
+  const txns = data[key].transactions;
+  const r = txns[idx];
+  if (!r) return;
+  // If this is a split part, remove all sibling parts
+  if (r._splitFrom !== undefined) {
+    const originalIdx = r._splitFrom;
+    for (let i = txns.length - 1; i >= 0; i--) {
+      if (txns[i]._splitFrom === originalIdx) txns.splice(i, 1);
+    }
+    showCorrectionToast('Deleted split transaction');
+  } else {
+    txns.splice(idx, 1);
+    showCorrectionToast(`Deleted "${r.description}"`);
+  }
+  rebuildMonthSummary(data[key]);
+  await saveAllData(data, key);
   await renderDetailTxnTable(key);
   viewMonthDetailFromData(key, data);
 }
@@ -3245,6 +3458,26 @@ function unsplitTransaction(originalIdx) {
   showCorrectionToast('Transaction unsplit');
 }
 
+function deleteResultRow(idx) {
+  const r = categorisedResults[idx];
+  if (!r) return;
+  // If this is a split part, remove all sibling parts too
+  if (r._splitFrom !== undefined) {
+    const originalIdx = r._splitFrom;
+    for (let i = categorisedResults.length - 1; i >= 0; i--) {
+      if (categorisedResults[i]._splitFrom === originalIdx) {
+        categorisedResults.splice(i, 1);
+      }
+    }
+    showCorrectionToast('Deleted split transaction');
+  } else {
+    categorisedResults.splice(idx, 1);
+    showCorrectionToast(`Deleted "${r.description}"`);
+  }
+  buildStep4();
+  autoSaveMonth();
+}
+
 // ═══════════════════════════
 // SETTINGS — CATEGORIES
 // ═══════════════════════════
@@ -3279,7 +3512,7 @@ async function addCategory() {
   const sheet = document.getElementById('new-cat-sheet').value;
   if (!name) return;
   const cats = await loadCategories();
-  if (!cats.work) cats.work = [...DEFAULT_WORK_CATS];
+  if (!cats.work) cats.work = defaultWorkCatsFor(getUserId());
   const scope = sheet === 'House'
     ? cats.house
     : sheet === 'Work'
@@ -3843,16 +4076,17 @@ async function renderUsageCharts(data, keys, usageData) {
 Object.assign(window, {
   showPage, switchInner, loadSample, goToPrompt, copyPrompt, loadResults,
   saveCurrentMonth, togglePaste, handleFiles, removeFile,
-  updateResultCat,
+  updateResultCat, deleteResultRow,
   selectCatMonth, selectHouseCatMonth, selectPersonalCatMonth, selectWorkReimbTab,
   switchDashTab, toggleReimb, saveUsage, loadUsageForMonth, handleInvoiceFile,
   deleteMonth, closeDetail, viewMonthDetail, updateDetailCatInPlace,
-  openDetailSplitModal, unsplitDetailTransaction,
+  openDetailSplitModal, unsplitDetailTransaction, deleteDetailRow,
   selectName, confirmOtherName, forgetUser,
   doLogin, doSignOut, togglePasswordVisibility,
   renderDashboard, refreshDashboard, renderHistory, refreshHistory, renderIOU, refreshIOU, renderIOUMonth, markIOUPaid,
   addCategory, removeCategory, removeCorrection, clearCorrections,
-  openSplitModal, closeSplitModal, updateSplitA, updateSplitB, confirmSplit, unsplitTransaction
+  openSplitModal, closeSplitModal, updateSplitA, updateSplitB, confirmSplit, unsplitTransaction,
+  togglePreview
 });
 
 // ═══════════════════════════
