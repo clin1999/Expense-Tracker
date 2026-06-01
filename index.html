@@ -1343,7 +1343,10 @@ let _catsCache = null;
 let _catsCacheForUser = null;
 
 function userCategoriesRef(userId) {
-  return doc(db, 'users', userId || getUserId(), 'categories');
+  // Firestore document paths need an even number of segments (collection/doc pairs).
+  // 'users/{uid}/categories' has 3 segments = invalid collection ref, causing silent write failures.
+  // Fixed: 'users/{uid}/settings/categories' = 4 segments = valid document ref.
+  return doc(db, 'users', userId || getUserId(), 'settings', 'categories');
 }
 
 function defaultPersonalCatsFor(userId) {
@@ -1378,14 +1381,14 @@ async function loadCategories(userId) {
       if (Array.isArray(u.personal)) personal = u.personal;
       if (Array.isArray(u.work)) work = u.work;
       else work = defaultWorkCatsFor(uid);
-    } else if (uid === 'peter' && shared.personal?.length) {
-      // One-time migration: Peter's list lived in shared/categories
-      personal = shared.personal;
-      work = shared.work?.length ? shared.work : [...DEFAULT_WORK_CATS];
-      await setDoc(userCategoriesRef('peter'), { personal, work });
-      await setDoc(doc(db, 'shared', 'categories'), { house });
     } else {
-      await setDoc(userCategoriesRef(uid), { personal, work });
+      // First time this user's settings/categories doc is created — seed with defaults
+      // (or migrate from old shared/categories doc for Peter)
+      if (uid === 'peter' && Array.isArray(shared.personal) && shared.personal.length) {
+        personal = shared.personal;
+        work = Array.isArray(shared.work) && shared.work.length ? shared.work : [...DEFAULT_WORK_CATS];
+      }
+      await setDoc(userCategoriesRef(uid), { personal, work }, { merge: true });
     }
 
     _catsCache = { house, personal, work };
@@ -1401,15 +1404,21 @@ async function loadCategories(userId) {
 
 async function saveCategories(cats) {
   const uid = getUserId();
+  // Update cache immediately — UI stays correct even if Firestore write is slow
   _catsCache = cats;
   _catsCacheForUser = uid;
   try {
-    await setDoc(doc(db, 'shared', 'categories'), { house: cats.house });
+    // { merge: true } means we only overwrite the fields we supply — never wipe others
+    await setDoc(doc(db, 'shared', 'categories'), { house: cats.house }, { merge: true });
     await setDoc(userCategoriesRef(uid), {
       personal: cats.personal,
-      work: cats.work ?? defaultWorkCatsFor(uid),
-    });
-  } catch (e) { console.error('Categories save error:', e); }
+      work: Array.isArray(cats.work) ? cats.work : defaultWorkCatsFor(uid),
+    }, { merge: true });
+  } catch (e) {
+    // Surface the error visibly so silent failures don't mislead
+    console.error('Categories save error:', e);
+    showCorrectionToast('⚠ Category save failed — check your connection');
+  }
 }
 
 function updatePersonalCategoryLabels() {
@@ -1490,7 +1499,7 @@ async function showPage(p) {
   document.querySelectorAll('.nav-tab')[tabs.indexOf(p)].classList.add('active');
   if (p === 'dashboard') await renderDashboard();
   if (p === 'history') await renderHistory();
-  if (p === 'settings') await renderSettings();
+  if (p === 'settings') { invalidateCategoriesCache(); await renderSettings(); }
   if (p === 'iou') await renderIOU();
   if (p === 'formulae') renderFormulaeReference();
 }
