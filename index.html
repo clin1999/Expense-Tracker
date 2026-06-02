@@ -1130,7 +1130,7 @@ select:focus{outline:none;border-color:var(--accent)}
 
     <!-- House categories -->
     <div style="margin-bottom:1.25rem">
-      <div class="card-label" style="margin-bottom:.6rem">🏠 House expenses (shared with Tony)</div>
+      <div class="card-label" style="margin-bottom:.6rem">🏠 House expenses (your own list)</div>
       <div id="house-cats-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
     </div>
 
@@ -1246,7 +1246,8 @@ const auth = getAuth(app);
 // User email → namespace mapping
 const EMAIL_USER_MAP = {
   'changchien1999@gmail.com': 'peter',
-  'thsiang@gmail.com': 'tony'
+  'thsiang785@gmail.com': 'tony',
+  'thsiang@gmail.com': 'tony'  // fallback
 };
 
 // ═══════════════════════════
@@ -1330,13 +1331,11 @@ async function saveCorrections(list) {
   } catch(e) { console.error('Corrections save error:', e); }
 }
 
-// Category management
+// Category management — fully per-user, no shared storage
 const DEFAULT_HOUSE_CATS = ['Groceries','Electricity','Water','Wifi','Council Rates','Insurance'];
 const DEFAULT_PERSONAL_CATS = ['Eating Out','Jetts','Sharesies','Hatch','KiwiSaver','ASB Investment',
   'Take Home Pay','Brother Transfer','Work Reimbursement','Google One','Haircut','Health',
   'Transport','Travel','Shopping','2degrees Mobile','Royal NZ Fo','Other'];
-const DEFAULT_TONY_PERSONAL_CATS = ['Eating Out','Transport','Shopping','Health','Haircut','Insurance',
-  'Brother Transfer','Entertainment','Travel','2degrees Mobile','Other'];
 const DEFAULT_WORK_CATS = ['Work Expenses','Work Travel','Work Meals','Work Equipment'];
 
 let _catsCache = null;
@@ -1349,13 +1348,6 @@ function userCategoriesRef(userId) {
   return doc(db, 'users', userId || getUserId(), 'settings', 'categories');
 }
 
-function defaultPersonalCatsFor(userId) {
-  return userId === 'tony' ? [...DEFAULT_TONY_PERSONAL_CATS] : [...DEFAULT_PERSONAL_CATS];
-}
-
-function defaultWorkCatsFor(userId) {
-  return userId === 'tony' ? [] : [...DEFAULT_WORK_CATS];
-}
 
 function invalidateCategoriesCache() {
   _catsCache = null;
@@ -1366,39 +1358,30 @@ async function loadCategories(userId) {
   const uid = userId || getUserId();
   if (_catsCache && _catsCacheForUser === uid) return _catsCache;
 
-  let house = [...DEFAULT_HOUSE_CATS];
-  let personal = defaultPersonalCatsFor(uid);
-  let work = defaultWorkCatsFor(uid);
-
   try {
-    const sharedSnap = await getDoc(doc(db, 'shared', 'categories'));
-    const shared = sharedSnap.exists() ? sharedSnap.data() : {};
-    if (Array.isArray(shared.house)) house = shared.house;
-
-    const userSnap = await getDoc(userCategoriesRef(uid));
-    if (userSnap.exists()) {
-      const u = userSnap.data();
-      if (Array.isArray(u.personal)) personal = u.personal;
-      if (Array.isArray(u.work)) work = u.work;
-      else work = defaultWorkCatsFor(uid);
+    const snap = await getDoc(userCategoriesRef(uid));
+    if (snap.exists()) {
+      const d = snap.data();
+      _catsCache = {
+        house: Array.isArray(d.house) ? d.house : [...DEFAULT_HOUSE_CATS],
+        personal: Array.isArray(d.personal) ? d.personal : [...DEFAULT_PERSONAL_CATS],
+        work: Array.isArray(d.work) ? d.work : [...DEFAULT_WORK_CATS]
+      };
     } else {
-      // First time this user's settings/categories doc is created — seed with defaults
-      // (or migrate from old shared/categories doc for Peter)
-      if (uid === 'peter' && Array.isArray(shared.personal) && shared.personal.length) {
-        personal = shared.personal;
-        work = Array.isArray(shared.work) && shared.work.length ? shared.work : [...DEFAULT_WORK_CATS];
-      }
-      await setDoc(userCategoriesRef(uid), { personal, work }, { merge: true });
+      // First time — write defaults once
+      const defaults = {
+        house: [...DEFAULT_HOUSE_CATS],
+        personal: [...DEFAULT_PERSONAL_CATS],
+        work: [...DEFAULT_WORK_CATS]
+      };
+      await setDoc(userCategoriesRef(uid), defaults);
+      _catsCache = defaults;
     }
-
-    _catsCache = { house, personal, work };
     _catsCacheForUser = uid;
     return _catsCache;
-  } catch (e) {
+  } catch(e) {
     console.error('Categories load error:', e);
-    _catsCache = { house, personal, work };
-    _catsCacheForUser = uid;
-    return _catsCache;
+    return { house: [...DEFAULT_HOUSE_CATS], personal: [...DEFAULT_PERSONAL_CATS], work: [...DEFAULT_WORK_CATS] };
   }
 }
 
@@ -1408,14 +1391,12 @@ async function saveCategories(cats) {
   _catsCache = cats;
   _catsCacheForUser = uid;
   try {
-    // { merge: true } means we only overwrite the fields we supply — never wipe others
-    await setDoc(doc(db, 'shared', 'categories'), { house: cats.house }, { merge: true });
     await setDoc(userCategoriesRef(uid), {
+      house: cats.house,
       personal: cats.personal,
-      work: Array.isArray(cats.work) ? cats.work : defaultWorkCatsFor(uid),
+      work: Array.isArray(cats.work) ? cats.work : [...DEFAULT_WORK_CATS],
     }, { merge: true });
   } catch (e) {
-    // Surface the error visibly so silent failures don't mislead
     console.error('Categories save error:', e);
     showCorrectionToast('⚠ Category save failed — check your connection');
   }
@@ -1906,8 +1887,8 @@ function loadResults() {
 // Use getAllCats() async where needed, or _catsCache for sync contexts after load
 function getAllCatsSync() {
   const uid = getUserId();
-  if (!_catsCache) return [...DEFAULT_HOUSE_CATS, ...defaultPersonalCatsFor(uid), ...defaultWorkCatsFor(uid)];
-  return [..._catsCache.house, ..._catsCache.personal, ...(_catsCache.work || defaultWorkCatsFor(uid))];
+  if (!_catsCache) return [...DEFAULT_HOUSE_CATS, ...DEFAULT_PERSONAL_CATS, ...DEFAULT_WORK_CATS];
+  return [..._catsCache.house, ..._catsCache.personal, ...(_catsCache.work || DEFAULT_WORK_CATS)];
 }
 function getHouseCatsSync() {
   if (!_catsCache) return DEFAULT_HOUSE_CATS;
@@ -1915,7 +1896,7 @@ function getHouseCatsSync() {
 }
 
 function getPersonalCatsSync() {
-  if (!_catsCache) return defaultPersonalCatsFor(getUserId());
+  if (!_catsCache) return [...DEFAULT_PERSONAL_CATS];
   return _catsCache.personal;
 }
 
@@ -1952,8 +1933,8 @@ function getPersonalExpenseCatNames() {
 
 function getWorkCatsSync() {
   const uid = getUserId();
-  if (!_catsCache) return defaultWorkCatsFor(uid);
-  return _catsCache.work ?? defaultWorkCatsFor(uid);
+  if (!_catsCache) return [...DEFAULT_WORK_CATS];
+  return _catsCache.work ?? [...DEFAULT_WORK_CATS];
 }
 
 function sumCat(cat, results) {
@@ -3522,7 +3503,7 @@ async function addCategory() {
   const sheet = document.getElementById('new-cat-sheet').value;
   if (!name) return;
   const cats = await loadCategories();
-  if (!cats.work) cats.work = defaultWorkCatsFor(getUserId());
+  if (!cats.work) cats.work = [...DEFAULT_WORK_CATS];
   const scope = sheet === 'House'
     ? cats.house
     : sheet === 'Work'
