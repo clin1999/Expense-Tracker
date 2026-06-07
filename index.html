@@ -561,75 +561,23 @@ select:focus{outline:none;border-color:var(--accent)}
 }
 
 /* DRAGGABLE CATEGORY PILLS */
-.cat-pill {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 10px 5px 12px;
-  border-radius: 20px; font-size: .82rem;
-  cursor: grab; user-select: none;
-  transition: opacity .15s, box-shadow .15s;
-  position: relative;
-}
-.cat-pill:active { cursor: grabbing; }
-.cat-pill.dragging { opacity: .35; box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
-.cat-pill.drag-target { box-shadow: 0 0 0 2px var(--accent); }
-.cat-drop-zone {
-  min-height: 42px; padding: 8px; border-radius: 10px;
-  border: 2px dashed transparent;
-  display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start;
-  transition: border-color .15s, background .15s;
-}
-.cat-drop-zone.drag-over {
-  border-color: var(--accent); background: var(--accent-l);
-}
-.cat-pill-rename-input {
-  border: none; background: transparent; font-size: .82rem;
-  font-family: 'DM Sans', sans-serif; color: var(--text);
-  outline: none; padding: 0; min-width: 60px; max-width: 120px;
-  border-bottom: 1.5px solid var(--accent);
-}
+.cat-pill { display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 12px;border-radius:20px;font-size:.82rem;cursor:grab;user-select:none;transition:opacity .15s,box-shadow .15s; }
+.cat-pill:active { cursor:grabbing; }
+.cat-pill.dragging { opacity:.35;box-shadow:0 4px 16px rgba(0,0,0,.15); }
+.cat-drop-zone { min-height:42px;padding:8px;border-radius:10px;border:2px dashed transparent;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;transition:border-color .15s,background .15s; }
+.cat-drop-zone.drag-over { border-color:var(--accent);background:var(--accent-l); }
+.cat-pill-rename-input { border:none;background:transparent;font-size:.82rem;font-family:'DM Sans',sans-serif;color:var(--text);outline:none;padding:0;min-width:60px;max-width:140px;border-bottom:1.5px solid var(--accent); }
 
 /* IOU RECONCILIATION */
-.recon-card {
-  border: 1px solid var(--border); border-radius: 10px;
-  margin-bottom: .75rem; overflow: hidden;
-}
-.recon-header {
-  display: grid; grid-template-columns: 1fr auto 1fr;
-  gap: 12px; align-items: center; padding: 12px 16px;
-  background: var(--surface2);
-}
-.recon-side {
-  font-size: .8rem;
-}
-.recon-arrow {
-  font-size: 1.2rem; color: var(--text3); text-align: center;
-}
-.recon-match-row {
-  padding: 10px 16px; display: flex; align-items: center;
-  justify-content: space-between; gap: 12px; flex-wrap: wrap;
-  border-top: 1px solid var(--border); background: var(--surface);
-}
-.recon-match-row.confirmed { background: var(--accent-l); }
-.recon-match-row.rejected  { opacity: .5; }
-.recon-txn-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 10px; border-radius: 20px;
-  font-family: 'DM Mono', monospace; font-size: .68rem;
-  background: var(--surface2); border: 1px solid var(--border);
-  cursor: grab;
-}
-.recon-txn-chip.dragging { opacity: .35; }
-.recon-drop-target {
-  min-width: 180px; min-height: 34px; border-radius: 8px;
-  border: 2px dashed var(--border2); padding: 4px 8px;
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  transition: border-color .15s, background .15s;
-  font-size: .75rem; color: var(--text3);
-}
-.recon-drop-target.drag-over { border-color: var(--accent); background: var(--accent-l); }
-.recon-confidence-high { color: var(--accent); }
-.recon-confidence-med  { color: var(--amber); }
-.recon-confidence-low  { color: var(--text3); }
+.recon-card { border:1px solid var(--border);border-radius:10px;margin-bottom:.75rem;overflow:hidden; }
+.recon-header { display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;padding:12px 16px;background:var(--surface2); }
+.recon-side { font-size:.8rem; }
+.recon-arrow { font-size:1.1rem;color:var(--text3);text-align:center;white-space:nowrap; }
+.recon-actions { padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--border);background:var(--surface); }
+.recon-actions.confirmed { background:var(--accent-l); }
+.recon-confidence-high { color:var(--accent); }
+.recon-confidence-med  { color:var(--amber); }
+.recon-confidence-low  { color:var(--text3); }
 
 </style>
 </head>
@@ -1164,10 +1112,10 @@ select:focus{outline:none;border-color:var(--accent)}
 
     <!-- Transaction Reconciliation -->
     <div class="card" id="iou-recon-card" style="display:none">
-      <div style="display:flex;align-items:baseline;gap:.75rem;margin-bottom:.5rem;flex-wrap:wrap;justify-content:space-between">
+      <div style="display:flex;align-items:baseline;gap:.75rem;margin-bottom:.75rem;flex-wrap:wrap;justify-content:space-between">
         <div>
           <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600">Transaction reconciliation</div>
-          <div style="font-size:.8rem;color:var(--text2);margin-top:2px">Auto-detected reimbursement transfers — approve or swap the matching transaction</div>
+          <div style="font-size:.8rem;color:var(--text2);margin-top:2px">Auto-detected reimbursements from your transactions — confirm or swap each match</div>
         </div>
         <button class="btn btn-secondary" style="padding:.35rem .85rem;font-size:.65rem" onclick="runReconciliation()">↺ Re-scan</button>
       </div>
@@ -1426,7 +1374,8 @@ let _catsCache = null;
 let _catsCacheForUser = null;
 
 function userCategoriesRef(userId) {
-  return doc(db, 'users', userId || getUserId(), 'categories');
+  // 4-segment path required: collection/doc/collection/doc
+  return doc(db, 'users', userId || getUserId(), 'settings', 'categories');
 }
 
 function defaultPersonalCatsFor(userId) {
@@ -1446,52 +1395,57 @@ async function loadCategories(userId) {
   const uid = userId || getUserId();
   if (_catsCache && _catsCacheForUser === uid) return _catsCache;
 
-  let house = [...DEFAULT_HOUSE_CATS];
+  let house    = [...DEFAULT_HOUSE_CATS];
   let personal = defaultPersonalCatsFor(uid);
-  let work = defaultWorkCatsFor(uid);
+  let work     = defaultWorkCatsFor(uid);
 
   try {
-    const sharedSnap = await getDoc(doc(db, 'shared', 'categories'));
-    const shared = sharedSnap.exists() ? sharedSnap.data() : {};
-    if (Array.isArray(shared.house)) house = shared.house;
-
-    const userSnap = await getDoc(userCategoriesRef(uid));
-    if (userSnap.exists()) {
-      const u = userSnap.data();
-      if (Array.isArray(u.personal)) personal = u.personal;
-      work = u.work ?? defaultWorkCatsFor(uid);
-    } else if (uid === 'peter' && shared.personal?.length) {
-      // One-time migration: Peter's list lived in shared/categories
-      personal = shared.personal;
-      work = shared.work?.length ? shared.work : [...DEFAULT_WORK_CATS];
-      await setDoc(userCategoriesRef('peter'), { personal, work });
-      await setDoc(doc(db, 'shared', 'categories'), { house });
+    const snap = await getDoc(userCategoriesRef(uid));
+    if (snap.exists()) {
+      const d = snap.data();
+      if (Array.isArray(d.house))    house    = d.house;
+      if (Array.isArray(d.personal)) personal = d.personal;
+      if (Array.isArray(d.work))     work     = d.work;
+      else work = defaultWorkCatsFor(uid);
     } else {
-      await setDoc(userCategoriesRef(uid), { personal, work });
+      // First login — seed defaults (migrate old shared/categories for peter if present)
+      try {
+        const sharedSnap = await getDoc(doc(db, 'shared', 'categories'));
+        if (sharedSnap.exists()) {
+          const s = sharedSnap.data();
+          if (Array.isArray(s.house) && s.house.length) house = s.house;
+          if (uid === 'peter') {
+            if (Array.isArray(s.personal) && s.personal.length) personal = s.personal;
+            if (Array.isArray(s.work)     && s.work.length)     work     = s.work;
+          }
+        }
+      } catch(_) {}
+      await setDoc(userCategoriesRef(uid), { house, personal, work }, { merge: true });
     }
-
-    _catsCache = { house, personal, work };
+    _catsCache        = { house, personal, work };
     _catsCacheForUser = uid;
     return _catsCache;
   } catch (e) {
     console.error('Categories load error:', e);
-    _catsCache = { house, personal, work };
-    _catsCacheForUser = uid;
-    return _catsCache;
+    return { house, personal, work };
   }
 }
 
 async function saveCategories(cats) {
   const uid = getUserId();
-  _catsCache = cats;
+  // Update cache immediately so UI never lags behind
+  _catsCache        = cats;
   _catsCacheForUser = uid;
   try {
-    await setDoc(doc(db, 'shared', 'categories'), { house: cats.house });
     await setDoc(userCategoriesRef(uid), {
+      house:    cats.house,
       personal: cats.personal,
-      work: cats.work ?? defaultWorkCatsFor(uid),
-    });
-  } catch (e) { console.error('Categories save error:', e); }
+      work:     Array.isArray(cats.work) ? cats.work : defaultWorkCatsFor(uid),
+    }, { merge: true });
+  } catch (e) {
+    console.error('Categories save error:', e);
+    showCorrectionToast('⚠ Save failed — check connection');
+  }
 }
 
 function updatePersonalCategoryLabels() {
@@ -2534,15 +2488,15 @@ async function renderDashboard() {
   // ── PERSONAL TAB ──
   document.getElementById('personal-subtitle').textContent = `Last updated: ${latest.label} · ${keys.length} month${keys.length>1?'s':''} of data`;
 
-  const myHouseShare = (s.houseShare || s.houseTotal / 2);
-  const totalPersonalOutlay = s.personalSpend + myHouseShare;
+  const myHouseShare   = s.houseShare || (s.houseTotal / 2);
+  const totalOutlay    = s.personalSpend + myHouseShare;
   document.getElementById('personal-metrics').innerHTML = `
     <div class="metric"><div class="metric-label">Take home pay</div><div class="metric-value">$${s.pay.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.pay,prevS?.pay)} vs last month</div></div>
     <div class="metric"><div class="metric-label">Personal expenses</div><div class="metric-value">$${s.personalSpend.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.personalSpend,prevS?.personalSpend)} vs last month</div></div>
-    <div class="metric" style="border-color:var(--blue-l)"><div class="metric-label" style="color:var(--blue)">House share</div><div class="metric-value" style="color:var(--blue)">$${myHouseShare.toFixed(0)}</div><div class="metric-sub">your half of $${s.houseTotal.toFixed(0)} house total</div></div>
-    <div class="metric" style="border-color:var(--border2)"><div class="metric-label">Total outlay</div><div class="metric-value">$${totalPersonalOutlay.toFixed(0)}</div><div class="metric-sub">personal + house share</div></div>
+    <div class="metric" style="border-color:var(--blue-l)"><div class="metric-label" style="color:var(--blue)">House share</div><div class="metric-value" style="color:var(--blue);font-size:1.45rem">$${myHouseShare.toFixed(0)}</div><div class="metric-sub">your half of $${s.houseTotal.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Total outlay</div><div class="metric-value">$${totalOutlay.toFixed(0)}</div><div class="metric-sub">personal + house share</div></div>
     <div class="metric"><div class="metric-label">Investments</div><div class="metric-value">$${s.investTotal.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.investTotal,prevS?.investTotal)} vs last month</div></div>
-    <div class="metric"><div class="metric-label">True savings</div><div class="metric-value ${s.savings>=0?'metric-pos':'metric-neg'}">$${s.savings.toFixed(0)}</div><div class="metric-sub">pay − expenses − house share</div></div>
+    <div class="metric"><div class="metric-label">True savings</div><div class="metric-value ${s.savings>=0?'metric-pos':'metric-neg'}">$${s.savings.toFixed(0)}</div><div class="metric-sub">pay − personal − house share</div></div>
     <div class="metric"><div class="metric-label">Net position</div><div class="metric-value metric-pos">$${(s.netPosition||s.savings+s.investTotal).toFixed(0)}</div><div class="metric-sub">savings + investments</div></div>
     ${(s.workTotal||0)>0?`<div class="metric"><div class="metric-label">Work to claim</div><div class="metric-value" style="color:var(--amber)">$${s.workTotal.toFixed(0)}</div><div class="metric-sub">reimbursable</div></div>`:''}
   `;
@@ -3579,103 +3533,103 @@ async function renderSettings() {
   await renderCorrectionsLog();
 }
 
-// ── CATEGORY DRAG & DROP + RENAME ──
+// ── CATEGORY DRAG-AND-DROP + RENAME ──
 let _dragCat = null, _dragFromSheet = null;
 
 function renderCatPills(containerId, catList, sheet) {
   const el = document.getElementById(containerId);
-  const colors    = {House:'var(--blue-l)',  Personal:'var(--purple-l)', Work:'var(--amber-l)'};
-  const textColors = {House:'var(--blue)',   Personal:'var(--purple)',    Work:'var(--amber)'};
-  const borderClr = {House:'var(--blue)',    Personal:'var(--purple)',     Work:'var(--amber)'};
+  const bg   = {House:'var(--blue-l)',  Personal:'var(--purple-l)', Work:'var(--amber-l)'};
+  const bdr  = {House:'var(--blue)',    Personal:'var(--purple)',    Work:'var(--amber)'};
+  const txt  = {House:'var(--blue)',    Personal:'var(--purple)',    Work:'var(--amber)'};
 
-  // Make the container a drop zone
   el.className = 'cat-drop-zone';
   el.dataset.sheet = sheet;
-
   el.ondragover  = e => { e.preventDefault(); el.classList.add('drag-over'); };
-  el.ondragleave = () => el.classList.remove('drag-over');
+  el.ondragleave = e => { if (!el.contains(e.relatedTarget)) el.classList.remove('drag-over'); };
   el.ondrop      = async e => {
-    e.preventDefault();
-    el.classList.remove('drag-over');
+    e.preventDefault(); el.classList.remove('drag-over');
     if (!_dragCat || !_dragFromSheet || _dragFromSheet === sheet) return;
     await moveCategoryToSheet(_dragCat, _dragFromSheet, sheet);
   };
 
-  el.innerHTML = catList.map(cat => `
-    <div class="cat-pill" draggable="true"
-      style="background:${colors[sheet]||'var(--surface2)'};border:1px solid ${borderClr[sheet]||'var(--border)'};color:${textColors[sheet]||'var(--text)'};"
-      data-cat="${cat.replace(/"/g,'&quot;')}" data-sheet="${sheet}"
-      ondragstart="catDragStart(event,'${cat.replace(/'/g,"\'")}','${sheet}')"
-      ondragend="catDragEnd(event)">
-      <span class="cat-label" ondblclick="startRename(this,'${cat.replace(/'/g,"\'")}','${sheet}')" title="Double-click to rename">${cat}</span>
-      <button onclick="removeCategory('${cat.replace(/'/g,"\'")}','${sheet}')" title="Remove"
-        style="background:none;border:none;cursor:pointer;color:${textColors[sheet]};font-size:.9rem;line-height:1;padding:0;display:flex;align-items:center;opacity:.55;"
-        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.55'">×</button>
-    </div>`).join('');
-}
+  // Build pills via DOM (avoids quote-escaping issues with arbitrary category names)
+  el.innerHTML = '';
+  catList.forEach(cat => {
+    const pill = document.createElement('div');
+    pill.className = 'cat-pill';
+    pill.draggable = true;
+    pill.style.cssText = `background:${bg[sheet]||'var(--surface2)'};border:1px solid ${bdr[sheet]||'var(--border)'};color:${txt[sheet]||'var(--text)'};`;
+    pill.dataset.cat   = cat;
+    pill.dataset.sheet = sheet;
+    pill.ondragstart = e => { _dragCat = cat; _dragFromSheet = sheet; pill.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; };
+    pill.ondragend   = () => pill.classList.remove('dragging');
 
-function catDragStart(e, cat, sheet) {
-  _dragCat = cat; _dragFromSheet = sheet;
-  e.currentTarget.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-}
-function catDragEnd(e) {
-  e.currentTarget.classList.remove('dragging');
+    const label = document.createElement('span');
+    label.textContent = cat;
+    label.title = 'Double-click to rename';
+    label.ondblclick = () => startRename(label, cat, sheet);
+
+    const btn = document.createElement('button');
+    btn.title = 'Remove';
+    btn.textContent = '×';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:.9rem;line-height:1;padding:0;display:flex;align-items:center;opacity:.55;';
+    btn.style.color = txt[sheet] || 'var(--text3)';
+    btn.onmouseover = () => { btn.style.opacity='1'; btn.style.color='var(--red)'; };
+    btn.onmouseout  = () => { btn.style.opacity='.55'; btn.style.color=txt[sheet]||'var(--text3)'; };
+    btn.onclick = () => removeCategory(cat, sheet);
+
+    pill.appendChild(label);
+    pill.appendChild(btn);
+    el.appendChild(pill);
+  });
 }
 
 async function moveCategoryToSheet(cat, fromSheet, toSheet) {
   const cats = await loadCategories();
-  const sheetKey = s => s === 'House' ? 'house' : s === 'Work' ? 'work' : 'personal';
-  const fromList = cats[sheetKey(fromSheet)];
-  const toList   = cats[sheetKey(toSheet)];
-  if (!fromList || !toList) return;
-  const idx = fromList.findIndex(c => c === cat);
+  const key  = s => s==='House'?'house':s==='Work'?'work':'personal';
+  const from = cats[key(fromSheet)];
+  const to   = cats[key(toSheet)];
+  if (!from || !to) return;
+  const idx = from.findIndex(c => c === cat);
   if (idx === -1) return;
-  fromList.splice(idx, 1);
-  if (!toList.includes(cat)) toList.push(cat);
+  from.splice(idx, 1);
+  if (!to.includes(cat)) to.push(cat);
   await saveCategories(cats);
-  showCorrectionToast(`Moved "${cat}" → ${toSheet}`);
+  showCorrectionToast(`Moved "${cat}" to ${toSheet}`);
   renderSettings();
 }
 
-function startRename(spanEl, oldName, sheet) {
+function startRename(labelEl, oldName, sheet) {
   const input = document.createElement('input');
   input.className = 'cat-pill-rename-input';
   input.value = oldName;
   input.style.width = Math.max(60, oldName.length * 8) + 'px';
-  spanEl.replaceWith(input);
-  input.focus();
-  input.select();
-
+  labelEl.replaceWith(input);
+  input.focus(); input.select();
   const commit = async () => {
     const newName = input.value.trim();
     if (!newName || newName === oldName) { renderSettings(); return; }
     await renameCategory(oldName, newName, sheet);
   };
-  input.onblur = commit;
-  input.onkeydown = e => {
-    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-    if (e.key === 'Escape') { renderSettings(); }
-  };
+  input.onblur  = commit;
+  input.onkeydown = e => { if (e.key==='Enter'){e.preventDefault();input.blur();} if(e.key==='Escape') renderSettings(); };
 }
 
 async function renameCategory(oldName, newName, sheet) {
   if (!newName || newName === oldName) return;
   const cats = await loadCategories();
-  const sheetKey = s => s === 'House' ? 'house' : s === 'Work' ? 'work' : 'personal';
-  const list = cats[sheetKey(sheet)];
+  const key  = s => s==='House'?'house':s==='Work'?'work':'personal';
+  const list = cats[key(sheet)];
   if (!list) return;
   const idx = list.findIndex(c => c === oldName);
   if (idx === -1) return;
-  if (list.some((c, i) => i !== idx && c.toLowerCase() === newName.toLowerCase())) {
-    alert('A category with that name already exists.');
-    renderSettings(); return;
+  if (list.some((c,i) => i!==idx && c.toLowerCase()===newName.toLowerCase())) {
+    alert('A category with that name already exists.'); renderSettings(); return;
   }
   list[idx] = newName;
   await saveCategories(cats);
-  showCorrectionToast(`Renamed "${oldName}" → "${newName}"`);
+  showCorrectionToast(`Renamed "${oldName}" to "${newName}"`);
   renderSettings();
-  await renderDashboard();
 }
 
 async function addCategory() {
@@ -4245,231 +4199,237 @@ async function renderUsageCharts(data, keys, usageData) {
 // IOU RECONCILIATION ENGINE
 // ═══════════════════════════
 
-// Patterns that suggest a reimbursement transfer for a house expense
 const REIMB_KEYWORDS = [
-  'electricity','genesis','power','wifi','internet','spark','2degrees','broadband',
-  'water','watercare','council','rates','insurance','groceries','pak n save','woolworths',
-  'countdown','new world','house','rent','mortgage','transfer','reimb','half','share',
-  'split','contrib','bill','tony','peter','t lin','p lin','t.lin','p.lin'
+  'electricity','genesis','power','wifi','internet','broadband',
+  'water','watercare','council','rates','insurance','groceries',
+  'pak n save','woolworths','countdown','new world','house',
+  'transfer','reimb','half','share','split','contrib','bill'
 ];
 
-function scoreReimbMatch(txn, houseTxn, houseCat) {
-  // Score how likely txn (from current user) is a reimbursement for houseTxn
+function scoreReimbMatch(myTxn, otherHouseTxn) {
   let score = 0;
-  const desc = (txn.description || '').toLowerCase();
-  const memo = (txn.notes || '').toLowerCase();
+  const desc = (myTxn.description || '').toLowerCase();
+  const memo = (myTxn.notes || '').toLowerCase();
   const combined = desc + ' ' + memo;
+  const catWords = (otherHouseTxn.category || '').toLowerCase().split(/\s+/);
 
-  // Amount match: reimbursement is typically ~half of house expense
-  const halfAmt = Math.abs(houseTxn.amount) / 2;
-  const txnAmt  = Math.abs(txn.amount);
-  const amtDiff = Math.abs(txnAmt - halfAmt);
-  if (amtDiff < 0.50) score += 40;
-  else if (amtDiff < 2) score += 25;
-  else if (amtDiff < 10) score += 10;
-  else if (amtDiff / halfAmt > 0.3) score -= 20; // very different amount
+  // Amount: my payment should be ~half of their house expense
+  const half = Math.abs(otherHouseTxn.amount) / 2;
+  const mine = Math.abs(myTxn.amount);
+  const diff = Math.abs(mine - half);
+  const ratio = diff / (half || 1);
+  if (ratio < 0.02)       score += 50;
+  else if (ratio < 0.08)  score += 35;
+  else if (ratio < 0.20)  score += 15;
+  else if (ratio > 0.50)  score -= 25;
 
-  // Keyword match with house category
-  const catWords = (houseCat || '').toLowerCase().split(/\s+/);
+  // Category keyword match
   catWords.forEach(w => { if (w.length > 2 && combined.includes(w)) score += 20; });
 
-  // Generic transfer/reimb keywords
-  REIMB_KEYWORDS.forEach(kw => { if (combined.includes(kw)) score += 8; });
+  // Generic reimbursement keywords
+  REIMB_KEYWORDS.forEach(kw => { if (combined.includes(kw)) score += 6; });
 
-  // Date proximity: within 14 days
-  const parseDate = d => {
-    if (!d) return null;
-    const p = d.match(/(\d{2})\/(\d{2})(?:\/(\d{4}))?/);
-    if (!p) return null;
-    const yr = p[3] ? parseInt(p[3]) : new Date().getFullYear();
-    return new Date(yr, parseInt(p[2])-1, parseInt(p[1]));
-  };
-  const d1 = parseDate(txn.date), d2 = parseDate(houseTxn.date);
-  if (d1 && d2) {
-    const diff = Math.abs(d1 - d2) / 86400000;
-    if (diff <= 3)  score += 20;
-    else if (diff <= 7)  score += 12;
-    else if (diff <= 14) score += 5;
-    else if (diff > 30)  score -= 10;
-  }
+  // Date proximity (within same or adjacent month)
+  try {
+    const parseD = d => {
+      const m = (d||'').match(/(\d{2})\/(\d{2})(?:\/(\d{4}))?/);
+      if (!m) return null;
+      const yr = m[3] ? +m[3] : new Date().getFullYear();
+      return new Date(yr, +m[2]-1, +m[1]);
+    };
+    const d1 = parseD(myTxn.date), d2 = parseD(otherHouseTxn.date);
+    if (d1 && d2) {
+      const days = Math.abs(d1 - d2) / 86400000;
+      if (days <= 3)       score += 20;
+      else if (days <= 7)  score += 12;
+      else if (days <= 21) score += 5;
+      else if (days > 45)  score -= 15;
+    }
+  } catch(_) {}
 
-  // Negative amount = money going out (a payment) = good for reimbursement
-  if (txn.amount < 0) score += 5;
+  // Outgoing payment (negative amount = money leaving = reimbursement)
+  if (myTxn.amount < 0) score += 8;
 
   return Math.max(0, score);
 }
 
-function confidenceLabel(score) {
-  if (score >= 55) return { label: 'Strong match', cls: 'recon-confidence-high' };
-  if (score >= 30) return { label: 'Possible match', cls: 'recon-confidence-med' };
-  return { label: 'Weak match', cls: 'recon-confidence-low' };
+function confLabel(score) {
+  if (score >= 60) return { text: 'Strong match',   cls: 'recon-confidence-high' };
+  if (score >= 35) return { text: 'Possible match', cls: 'recon-confidence-med' };
+  return               { text: 'Weak match',     cls: 'recon-confidence-low' };
 }
 
-// State: { [reconId]: { approved: bool, matchedTxnKey: string } }
 let _reconState = {};
-
-function loadReconState() {
-  try { return JSON.parse(localStorage.getItem('pakaraka_recon') || '{}'); } catch { return {}; }
-}
+function loadReconState()  { try { return JSON.parse(localStorage.getItem('pakaraka_recon')||'{}'); } catch { return {}; } }
 function saveReconState(s) { localStorage.setItem('pakaraka_recon', JSON.stringify(s)); }
 
 async function runReconciliation() {
   const { peter, tony } = await loadAllUsersData();
-  const uid = getUserId();
-  const isBrother = uid === 'tony'; // tony's perspective: peter is "the other"
-  const myData   = isBrother ? tony  : peter;
-  const otherData = isBrother ? peter : tony;
-  const otherName = isBrother ? 'Peter' : 'Tony';
-  const myName    = isBrother ? 'Tony' : 'Peter';
+  const uid       = getUserId();
+  const myData    = uid === 'tony' ? tony  : peter;
+  const otherData = uid === 'tony' ? peter : tony;
+  const otherName = uid === 'tony' ? 'Peter' : 'Tony';
 
   const houseCats = getHouseCatsSync();
   _reconState = loadReconState();
 
-  // Collect house expense transactions from the OTHER person
+  // Other person's house expense transactions
   const otherHouseTxns = [];
   Object.entries(otherData).forEach(([mk, mData]) => {
     (mData.transactions || []).forEach(t => {
-      if (houseCats.includes(t.category) && t.sheet === 'House' && Math.abs(t.amount) > 10) {
+      if (houseCats.includes(t.category) && t.sheet === 'House' && Math.abs(t.amount) > 5)
         otherHouseTxns.push({ ...t, monthKey: mk, monthLabel: mData.label });
-      }
     });
   });
 
-  // Collect MY transactions that could be reimbursements (payments going out)
+  // My transactions — each gets a stable key
   const myTxns = [];
   Object.entries(myData).forEach(([mk, mData]) => {
-    (mData.transactions || []).forEach(t => {
-      if (Math.abs(t.amount) > 1) {
-        myTxns.push({ ...t, monthKey: mk, monthLabel: mData.label,
-          _key: `${mk}__${t.date}__${t.description}__${t.amount}` });
-      }
+    (mData.transactions || []).forEach((t, i) => {
+      myTxns.push({ ...t, monthKey: mk, monthLabel: mData.label,
+        _key: `${mk}__${i}__${t.date}__${t.amount}` });
     });
   });
 
-  // For each house txn from the other person, find best match from my txns
-  const reconItems = otherHouseTxns.map(ht => {
+  // Score every pairing, keep only ones with candidates
+  const items = otherHouseTxns.map(ht => {
     const reconId = `${ht.monthKey}__${ht.date}__${ht.description}__${ht.amount}`;
-    const candidates = myTxns.map(t => ({
-      txn: t, score: scoreReimbMatch(t, ht, ht.category)
-    })).filter(c => c.score > 15).sort((a, b) => b.score - a.score);
+    const candidates = myTxns
+      .map(t => ({ txn: t, score: scoreReimbMatch(t, ht) }))
+      .filter(c => c.score > 20)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8);
+    return { reconId, houseTxn: ht, candidates, otherName };
+  }).filter(item => {
+    const st = _reconState[item.reconId];
+    // Show if: has candidates, or previously approved, skip if dismissed with no candidates
+    return item.candidates.length > 0 || st?.approved;
+  });
 
-    return { reconId, houseTxn: ht, candidates, otherName, myName };
-  }).filter(item => item.candidates.length > 0 || _reconState[item.reconId]);
-
-  // Render
   const card = document.getElementById('iou-recon-card');
   const body = document.getElementById('iou-recon-body');
+  if (!card || !body) return;
 
-  if (!reconItems.length) {
-    card.style.display = 'none';
-    return;
-  }
+  if (!items.length) { card.style.display = 'none'; return; }
   card.style.display = 'block';
 
-  const pending   = reconItems.filter(i => !_reconState[i.reconId]?.approved);
-  const confirmed = reconItems.filter(i =>  _reconState[i.reconId]?.approved);
+  const pending   = items.filter(i => !_reconState[i.reconId]?.approved && !_reconState[i.reconId]?.dismissed);
+  const confirmed = items.filter(i =>  _reconState[i.reconId]?.approved);
 
   let html = '';
 
   if (pending.length) {
-    html += `<div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:.6rem;padding:0 2px">
-      ${pending.length} pending — drag a transaction to confirm, or choose from alternatives
-    </div>`;
-    pending.forEach(item => { html += renderReconItem(item, myTxns); });
+    html += `<p style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:.75rem">
+      ${pending.length} unconfirmed — review each suggested match below
+    </p>`;
+    pending.forEach(item => { html += buildReconCard(item, myTxns, false); });
   }
-
   if (confirmed.length) {
-    html += `<div style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin:.85rem 0 .6rem;padding:0 2px">
+    html += `<p style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin:.85rem 0 .5rem">
       ${confirmed.length} confirmed
-    </div>`;
-    confirmed.forEach(item => { html += renderReconItem(item, myTxns); });
+    </p>`;
+    confirmed.forEach(item => { html += buildReconCard(item, myTxns, true); });
   }
 
   body.innerHTML = html;
-  wireReconDragDrop();
 }
 
-function renderReconItem(item, myTxns) {
-  const { reconId, houseTxn, candidates, otherName, myName } = item;
-  const state = _reconState[reconId];
-  const isApproved = state?.approved;
-  const matchKey  = state?.matchedTxnKey;
-  const matchedTxn = matchKey ? myTxns.find(t => t._key === matchKey) : (candidates[0]?.txn);
-  const topScore   = matchKey ? null : candidates[0]?.score;
-  const conf = topScore != null ? confidenceLabel(topScore) : { label: 'Confirmed', cls: 'recon-confidence-high' };
+function buildReconCard(item, myTxns, isConfirmed) {
+  const { reconId, houseTxn, candidates, otherName } = item;
+  const state = _reconState[reconId] || {};
+  const matchKey  = state.matchedTxnKey || (candidates[0]?.txn._key);
+  const matchedTxn = myTxns.find(t => t._key === matchKey) || candidates[0]?.txn;
+  const topScore   = candidates.find(c => c.txn._key === matchKey)?.score || candidates[0]?.score || 0;
+  const conf = isConfirmed ? { text: '✓ Confirmed', cls: 'recon-confidence-high' } : confLabel(topScore);
   const halfAmt = (Math.abs(houseTxn.amount) / 2).toFixed(2);
 
-  // Build alternatives selector
-  const altOptions = candidates.slice(0, 6).map(c =>
-    `<option value="${c.txn._key.replace(/"/g,'&quot;')}"${matchedTxn && c.txn._key === matchedTxn._key ? ' selected' : ''}>
-      ${c.txn.date} · ${c.txn.description.slice(0,28)} · $${Math.abs(c.txn.amount).toFixed(2)} (score ${c.score})
+  const altOptions = candidates.map(c =>
+    `<option value="${c.txn._key.replace(/"/g,'&quot;')}"${c.txn._key===matchKey?' selected':''}>
+      ${c.txn.date} · ${(c.txn.description||'').slice(0,30)} · $${Math.abs(c.txn.amount).toFixed(2)} (score:${c.score})
     </option>`
   ).join('');
 
-  return `<div class="recon-card" id="recon-${reconId.replace(/[^a-z0-9]/gi,'_')}">
+  // Use data-id attributes so we avoid inline JS string-escaping of reconId
+  const safeId = reconId.replace(/[^a-zA-Z0-9]/g,'_');
+
+  return `<div class="recon-card">
     <div class="recon-header">
       <div class="recon-side">
-        <div style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:3px">${otherName} paid</div>
-        <div style="font-weight:500">${houseTxn.description}</div>
-        <div style="font-family:'DM Mono',monospace;font-size:.78rem;color:var(--blue)">$${Math.abs(houseTxn.amount).toFixed(2)} · ${houseTxn.category}</div>
-        <div style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3)">${houseTxn.date} ${houseTxn.monthLabel}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:3px">${otherName} paid</div>
+        <div style="font-weight:500;font-size:.88rem">${houseTxn.description}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--blue);margin-top:2px">$${Math.abs(houseTxn.amount).toFixed(2)} · ${houseTxn.category}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text3)">${houseTxn.date} ${houseTxn.monthLabel}</div>
       </div>
-      <div class="recon-arrow">⟶<br><span style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--text3)">your share</span><br><span style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;color:var(--accent)">$${halfAmt}</span></div>
+      <div class="recon-arrow">
+        ⟶<br>
+        <span style="font-family:'DM Mono',monospace;font-size:.6rem;color:var(--text3)">your half</span><br>
+        <span style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;color:var(--accent)">$${halfAmt}</span>
+      </div>
       <div class="recon-side" style="text-align:right">
-        <div style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:3px">Your reimbursement</div>
+        <div style="font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:3px">Your payment</div>
         ${matchedTxn ? `
-          <div style="font-weight:500">${matchedTxn.description}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:.78rem;color:var(--red)">$${Math.abs(matchedTxn.amount).toFixed(2)}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text3)">${matchedTxn.date} ${matchedTxn.monthLabel}</div>
-        ` : `<div style="color:var(--text3);font-size:.8rem">No match found</div>`}
+          <div style="font-weight:500;font-size:.88rem">${matchedTxn.description||'—'}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--red);margin-top:2px">$${Math.abs(matchedTxn.amount).toFixed(2)}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text3)">${matchedTxn.date} ${matchedTxn.monthLabel}</div>
+        ` : `<div style="color:var(--text3);font-size:.8rem;margin-top:8px">No match found</div>`}
       </div>
     </div>
-    <div class="recon-match-row${isApproved ? ' confirmed' : ''}">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1">
-        <span class="${conf.cls}" style="font-family:'DM Mono',monospace;font-size:.65rem">● ${conf.label}</span>
-        ${candidates.length > 1 ? `
-          <select onchange="reconSelectAlt('${reconId}',this.value)" style="font-size:.72rem;padding:3px 6px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2)">
+    <div class="recon-actions${isConfirmed?' confirmed':''}">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1">
+        <span class="${conf.cls}" style="font-family:'DM Mono',monospace;font-size:.65rem;font-weight:500">● ${conf.text}</span>
+        ${candidates.length > 1 && !isConfirmed ? `
+          <select data-recon-id="${safeId}" data-recon-raw="${reconId.replace(/"/g,'&quot;')}"
+            onchange="reconSelectAlt(this)"
+            style="font-size:.72rem;padding:3px 8px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);max-width:280px">
             ${altOptions}
           </select>` : ''}
       </div>
       <div style="display:flex;gap:8px;align-items:center">
-        ${isApproved
-          ? `<span style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--accent)">✓ Confirmed</span>
-             <button class="btn btn-secondary" style="padding:.3rem .65rem;font-size:.62rem" onclick="reconUndo('${reconId}')">Undo</button>`
-          : `<button class="btn btn-secondary" style="padding:.3rem .65rem;font-size:.62rem" onclick="reconReject('${reconId}')">Dismiss</button>
-             <button class="btn btn-primary" style="padding:.3rem .65rem;font-size:.62rem" onclick="reconApprove('${reconId}','${matchedTxn?._key||''}')">✓ Confirm match</button>`
+        ${isConfirmed
+          ? `<button class="btn btn-secondary" style="padding:.3rem .65rem;font-size:.62rem"
+               data-recon-raw="${reconId.replace(/"/g,'&quot;')}" onclick="reconUndo(this)">Undo</button>`
+          : `<button class="btn btn-secondary" style="padding:.3rem .65rem;font-size:.62rem"
+               data-recon-raw="${reconId.replace(/"/g,'&quot;')}" onclick="reconDismiss(this)">Dismiss</button>
+             <button class="btn btn-primary" style="padding:.3rem .65rem;font-size:.62rem"
+               data-recon-raw="${reconId.replace(/"/g,'&quot;')}"
+               data-match-key="${(matchKey||'').replace(/"/g,'&quot;')}"
+               onclick="reconApprove(this)">✓ Confirm match</button>`
         }
       </div>
     </div>
   </div>`;
 }
 
-function wireReconDragDrop() {
-  // Not needed for now — button-based confirm is primary UX;
-  // drag-and-drop for category pills is the main D&D feature
-}
-
-function reconSelectAlt(reconId, txnKey) {
+// These use element.dataset to avoid any JS string injection from category/description names
+function reconSelectAlt(el) {
+  const reconId = el.dataset.reconRaw;
   if (!_reconState[reconId]) _reconState[reconId] = {};
-  _reconState[reconId].matchedTxnKey = txnKey;
+  _reconState[reconId].matchedTxnKey = el.value;
   saveReconState(_reconState);
-  runReconciliation();
+  // Update the confirm button's data-match-key on the same actions row
+  const actionsDiv = el.closest('.recon-actions');
+  const confirmBtn = actionsDiv?.querySelector('[data-match-key]');
+  if (confirmBtn) confirmBtn.dataset.matchKey = el.value;
 }
 
-function reconApprove(reconId, txnKey) {
-  _reconState[reconId] = { approved: true, matchedTxnKey: txnKey, approvedAt: new Date().toISOString() };
+function reconApprove(btn) {
+  const reconId = btn.dataset.reconRaw;
+  const matchKey = btn.dataset.matchKey;
+  _reconState[reconId] = { approved: true, matchedTxnKey: matchKey, approvedAt: new Date().toISOString() };
   saveReconState(_reconState);
   showCorrectionToast('Match confirmed ✓');
   runReconciliation();
 }
 
-function reconReject(reconId) {
-  _reconState[reconId] = { approved: false, dismissed: true };
+function reconDismiss(btn) {
+  const reconId = btn.dataset.reconRaw;
+  _reconState[reconId] = { dismissed: true };
   saveReconState(_reconState);
   runReconciliation();
 }
 
-function reconUndo(reconId) {
+function reconUndo(btn) {
+  const reconId = btn.dataset.reconRaw;
   delete _reconState[reconId];
   saveReconState(_reconState);
   runReconciliation();
@@ -4492,9 +4452,8 @@ Object.assign(window, {
   addCategory, removeCategory, renameCategory, removeCorrection, clearCorrections,
   openSplitModal, closeSplitModal, updateSplitA, updateSplitB, confirmSplit, unsplitTransaction,
   togglePreview,
-  catDragStart, catDragEnd,
-  runReconciliation, reconSelectAlt, reconApprove, reconReject, reconUndo,
-  moveCategoryToSheet, startRename
+  moveCategoryToSheet, startRename,
+  runReconciliation, reconSelectAlt, reconApprove, reconDismiss, reconUndo
 });
 
 // ═══════════════════════════
