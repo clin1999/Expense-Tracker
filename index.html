@@ -560,24 +560,73 @@ select:focus{outline:none;border-color:var(--accent)}
   top: 0;
 }
 
-/* DRAGGABLE CATEGORY PILLS */
-.cat-pill { display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 12px;border-radius:20px;font-size:.82rem;cursor:grab;user-select:none;transition:opacity .15s,box-shadow .15s; }
-.cat-pill:active { cursor:grabbing; }
-.cat-pill.dragging { opacity:.35;box-shadow:0 4px 16px rgba(0,0,0,.15); }
-.cat-drop-zone { min-height:42px;padding:8px;border-radius:10px;border:2px dashed transparent;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;transition:border-color .15s,background .15s; }
-.cat-drop-zone.drag-over { border-color:var(--accent);background:var(--accent-l); }
-.cat-pill-rename-input { border:none;background:transparent;font-size:.82rem;font-family:'DM Sans',sans-serif;color:var(--text);outline:none;padding:0;min-width:60px;max-width:140px;border-bottom:1.5px solid var(--accent); }
+/* ── Category drag-and-drop + rename ── */
+.cat-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px 5px 12px; border-radius: 20px; font-size: .82rem;
+  cursor: grab; user-select: none;
+  transition: opacity .15s, box-shadow .15s;
+}
+.cat-pill:active { cursor: grabbing; }
+.cat-pill.dragging { opacity: .35; box-shadow: 0 4px 16px rgba(0,0,0,.18); }
+.cat-drop-zone {
+  min-height: 44px; padding: 8px; border-radius: 10px;
+  border: 2px dashed transparent; display: flex; flex-wrap: wrap;
+  gap: 8px; align-items: flex-start;
+  transition: border-color .15s, background .15s;
+}
+.cat-drop-zone.drag-over { border-color: var(--accent); background: var(--accent-l); }
+.cat-rename-input {
+  border: none; background: transparent; font-size: .82rem;
+  font-family: 'DM Sans', sans-serif; color: var(--text);
+  outline: none; padding: 0; border-bottom: 1.5px solid var(--accent);
+  min-width: 50px; max-width: 150px;
+}
 
-/* IOU RECONCILIATION */
-.recon-card { border:1px solid var(--border);border-radius:10px;margin-bottom:.75rem;overflow:hidden; }
-.recon-header { display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;padding:12px 16px;background:var(--surface2); }
-.recon-side { font-size:.8rem; }
-.recon-arrow { font-size:1.1rem;color:var(--text3);text-align:center;white-space:nowrap; }
-.recon-actions { padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--border);background:var(--surface); }
-.recon-actions.confirmed { background:var(--accent-l); }
-.recon-confidence-high { color:var(--accent); }
-.recon-confidence-med  { color:var(--amber); }
-.recon-confidence-low  { color:var(--text3); }
+/* ── IOU Reconciliation ── */
+.recon-card {
+  border: 1px solid var(--border); border-radius: 10px;
+  margin-bottom: .85rem; overflow: hidden;
+  transition: box-shadow .15s;
+}
+.recon-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.07); }
+.recon-layout {
+  display: grid; grid-template-columns: 1fr 60px 1fr;
+  gap: 0; align-items: stretch;
+}
+.recon-col {
+  padding: 14px 16px;
+}
+.recon-col-mid {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 4px;
+  background: var(--surface2); padding: 12px 6px;
+  border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+}
+.recon-col-left  { background: var(--blue-l);  border-right: none; }
+.recon-col-right { background: var(--surface);  }
+.recon-col-right.confirmed { background: var(--accent-l); }
+.recon-footer {
+  border-top: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; background: var(--surface);
+}
+.recon-footer.confirmed { background: var(--accent-l); }
+.recon-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 20px;
+  font-family: 'DM Mono', monospace; font-size: .62rem;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.recon-badge-high { background: var(--accent-l); color: var(--accent); }
+.recon-badge-med  { background: var(--amber-l);  color: var(--amber); }
+.recon-badge-low  { background: var(--surface2); color: var(--text3); }
+@media(max-width:600px) {
+  .recon-layout { grid-template-columns: 1fr; }
+  .recon-col-mid { flex-direction: row; border: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 8px 16px; }
+  .recon-col-left { border-right: none; }
+}
 
 </style>
 </head>
@@ -1112,14 +1161,16 @@ select:focus{outline:none;border-color:var(--accent)}
 
     <!-- Transaction Reconciliation -->
     <div class="card" id="iou-recon-card" style="display:none">
-      <div style="display:flex;align-items:baseline;gap:.75rem;margin-bottom:.75rem;flex-wrap:wrap;justify-content:space-between">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem;flex-wrap:wrap;gap:.5rem">
         <div>
-          <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600">Transaction reconciliation</div>
-          <div style="font-size:.8rem;color:var(--text2);margin-top:2px">Auto-detected reimbursements from your transactions — confirm or swap each match</div>
+          <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600">My reimbursements to Tony</div>
+          <div style="font-size:.8rem;color:var(--text2);margin-top:2px">Transactions from your history matched to Tony's house expenses — confirm or pick the right one</div>
         </div>
         <button class="btn btn-secondary" style="padding:.35rem .85rem;font-size:.65rem" onclick="runReconciliation()">↺ Re-scan</button>
       </div>
-      <div id="iou-recon-body"></div>
+      <div id="iou-recon-body">
+        <div class="empty" style="padding:2rem"><div class="empty-icon" style="font-size:1.5rem">🔍</div><p>Scanning your transactions…</p></div>
+      </div>
     </div>
 
     <!-- All months summary -->
@@ -1374,7 +1425,7 @@ let _catsCache = null;
 let _catsCacheForUser = null;
 
 function userCategoriesRef(userId) {
-  // 4-segment path required: collection/doc/collection/doc
+  // Firestore docs need even path segments. 3-seg path = invalid collection ref = silent fail.
   return doc(db, 'users', userId || getUserId(), 'settings', 'categories');
 }
 
@@ -1406,23 +1457,23 @@ async function loadCategories(userId) {
       if (Array.isArray(d.house))    house    = d.house;
       if (Array.isArray(d.personal)) personal = d.personal;
       if (Array.isArray(d.work))     work     = d.work;
-      else work = defaultWorkCatsFor(uid);
+      // If doc exists but work field missing (old format), keep default
     } else {
-      // First login — seed defaults (migrate old shared/categories for peter if present)
+      // First login — attempt one-time migration from old shared doc, then seed defaults
       try {
-        const sharedSnap = await getDoc(doc(db, 'shared', 'categories'));
-        if (sharedSnap.exists()) {
-          const s = sharedSnap.data();
+        const sh = await getDoc(doc(db, 'shared', 'categories'));
+        if (sh.exists()) {
+          const s = sh.data();
           if (Array.isArray(s.house) && s.house.length) house = s.house;
           if (uid === 'peter') {
             if (Array.isArray(s.personal) && s.personal.length) personal = s.personal;
             if (Array.isArray(s.work)     && s.work.length)     work     = s.work;
           }
         }
-      } catch(_) {}
+      } catch (_) {}
       await setDoc(userCategoriesRef(uid), { house, personal, work }, { merge: true });
     }
-    _catsCache        = { house, personal, work };
+    _catsCache = { house, personal, work };
     _catsCacheForUser = uid;
     return _catsCache;
   } catch (e) {
@@ -1433,8 +1484,7 @@ async function loadCategories(userId) {
 
 async function saveCategories(cats) {
   const uid = getUserId();
-  // Update cache immediately so UI never lags behind
-  _catsCache        = cats;
+  _catsCache = cats;          // update cache immediately — UI stays correct
   _catsCacheForUser = uid;
   try {
     await setDoc(userCategoriesRef(uid), {
@@ -2488,12 +2538,12 @@ async function renderDashboard() {
   // ── PERSONAL TAB ──
   document.getElementById('personal-subtitle').textContent = `Last updated: ${latest.label} · ${keys.length} month${keys.length>1?'s':''} of data`;
 
-  const myHouseShare   = s.houseShare || (s.houseTotal / 2);
-  const totalOutlay    = s.personalSpend + myHouseShare;
+  const myHouseShare = (s.houseShare != null ? s.houseShare : s.houseTotal / 2);
+  const totalOutlay  = s.personalSpend + myHouseShare;
   document.getElementById('personal-metrics').innerHTML = `
     <div class="metric"><div class="metric-label">Take home pay</div><div class="metric-value">$${s.pay.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.pay,prevS?.pay)} vs last month</div></div>
     <div class="metric"><div class="metric-label">Personal expenses</div><div class="metric-value">$${s.personalSpend.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.personalSpend,prevS?.personalSpend)} vs last month</div></div>
-    <div class="metric" style="border-color:var(--blue-l)"><div class="metric-label" style="color:var(--blue)">House share</div><div class="metric-value" style="color:var(--blue);font-size:1.45rem">$${myHouseShare.toFixed(0)}</div><div class="metric-sub">your half of $${s.houseTotal.toFixed(0)}</div></div>
+    <div class="metric" style="border-color:var(--blue-l)"><div class="metric-label" style="color:var(--blue)">My house share</div><div class="metric-value" style="color:var(--blue)">$${myHouseShare.toFixed(0)}</div><div class="metric-sub">half of $${s.houseTotal.toFixed(0)} total</div></div>
     <div class="metric"><div class="metric-label">Total outlay</div><div class="metric-value">$${totalOutlay.toFixed(0)}</div><div class="metric-sub">personal + house share</div></div>
     <div class="metric"><div class="metric-label">Investments</div><div class="metric-value">$${s.investTotal.toFixed(0)}</div><div class="metric-sub">${trendBadge(s.investTotal,prevS?.investTotal)} vs last month</div></div>
     <div class="metric"><div class="metric-label">True savings</div><div class="metric-value ${s.savings>=0?'metric-pos':'metric-neg'}">$${s.savings.toFixed(0)}</div><div class="metric-sub">pay − personal − house share</div></div>
@@ -3533,60 +3583,92 @@ async function renderSettings() {
   await renderCorrectionsLog();
 }
 
-// ── CATEGORY DRAG-AND-DROP + RENAME ──
+// ── CATEGORY DRAG-AND-DROP + INLINE RENAME ──
 let _dragCat = null, _dragFromSheet = null;
 
 function renderCatPills(containerId, catList, sheet) {
   const el = document.getElementById(containerId);
-  const bg   = {House:'var(--blue-l)',  Personal:'var(--purple-l)', Work:'var(--amber-l)'};
-  const bdr  = {House:'var(--blue)',    Personal:'var(--purple)',    Work:'var(--amber)'};
-  const txt  = {House:'var(--blue)',    Personal:'var(--purple)',    Work:'var(--amber)'};
+  const bg  = { House:'var(--blue-l)',   Personal:'var(--purple-l)', Work:'var(--amber-l)'  };
+  const bdr = { House:'var(--blue)',     Personal:'var(--purple)',    Work:'var(--amber)'    };
+  const tc  = { House:'var(--blue)',     Personal:'var(--purple)',    Work:'var(--amber)'    };
 
+  // Turn container into a drop zone
   el.className = 'cat-drop-zone';
   el.dataset.sheet = sheet;
   el.ondragover  = e => { e.preventDefault(); el.classList.add('drag-over'); };
   el.ondragleave = e => { if (!el.contains(e.relatedTarget)) el.classList.remove('drag-over'); };
-  el.ondrop      = async e => {
+  el.ondrop = async e => {
     e.preventDefault(); el.classList.remove('drag-over');
     if (!_dragCat || !_dragFromSheet || _dragFromSheet === sheet) return;
     await moveCategoryToSheet(_dragCat, _dragFromSheet, sheet);
   };
 
-  // Build pills via DOM (avoids quote-escaping issues with arbitrary category names)
+  // Build pills via DOM so arbitrary category names can't break HTML/JS
   el.innerHTML = '';
   catList.forEach(cat => {
     const pill = document.createElement('div');
     pill.className = 'cat-pill';
     pill.draggable = true;
-    pill.style.cssText = `background:${bg[sheet]||'var(--surface2)'};border:1px solid ${bdr[sheet]||'var(--border)'};color:${txt[sheet]||'var(--text)'};`;
-    pill.dataset.cat   = cat;
-    pill.dataset.sheet = sheet;
-    pill.ondragstart = e => { _dragCat = cat; _dragFromSheet = sheet; pill.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; };
-    pill.ondragend   = () => pill.classList.remove('dragging');
+    pill.style.cssText = `background:${bg[sheet]||'var(--surface2)'};border:1px solid ${bdr[sheet]||'var(--border)'};color:${tc[sheet]||'var(--text)'};`;
+    pill.ondragstart = e => { _dragCat = cat; _dragFromSheet = sheet; pill.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; };
+    pill.ondragend   = () => { pill.classList.remove('dragging'); };
 
-    const label = document.createElement('span');
-    label.textContent = cat;
-    label.title = 'Double-click to rename';
-    label.ondblclick = () => startRename(label, cat, sheet);
+    const lbl = document.createElement('span');
+    lbl.textContent = cat;
+    lbl.title = 'Double-click to rename';
+    lbl.style.cursor = 'text';
+    lbl.ondblclick = () => startCatRename(lbl, cat, sheet);
 
     const btn = document.createElement('button');
-    btn.title = 'Remove';
     btn.textContent = '×';
+    btn.title = 'Remove';
     btn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:.9rem;line-height:1;padding:0;display:flex;align-items:center;opacity:.55;';
-    btn.style.color = txt[sheet] || 'var(--text3)';
-    btn.onmouseover = () => { btn.style.opacity='1'; btn.style.color='var(--red)'; };
-    btn.onmouseout  = () => { btn.style.opacity='.55'; btn.style.color=txt[sheet]||'var(--text3)'; };
-    btn.onclick = () => removeCategory(cat, sheet);
+    btn.style.color = tc[sheet] || 'var(--text3)';
+    btn.onmouseover = () => { btn.style.opacity = '1'; btn.style.color = 'var(--red)'; };
+    btn.onmouseout  = () => { btn.style.opacity = '.55'; btn.style.color = tc[sheet] || 'var(--text3)'; };
+    btn.onclick = e => { e.stopPropagation(); removeCategory(cat, sheet); };
 
-    pill.appendChild(label);
+    pill.appendChild(lbl);
     pill.appendChild(btn);
     el.appendChild(pill);
   });
 }
 
+function startCatRename(labelEl, oldName, sheet) {
+  const inp = document.createElement('input');
+  inp.className = 'cat-rename-input';
+  inp.value = oldName;
+  inp.style.width = Math.max(50, oldName.length * 9) + 'px';
+  labelEl.replaceWith(inp);
+  inp.focus(); inp.select();
+  const commit = async () => {
+    const nv = inp.value.trim();
+    if (!nv || nv === oldName) { renderSettings(); return; }
+    await doRenameCategory(oldName, nv, sheet);
+  };
+  inp.onblur = commit;
+  inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } if (e.key === 'Escape') renderSettings(); };
+}
+
+async function doRenameCategory(oldName, newName, sheet) {
+  const cats = await loadCategories();
+  const key  = s => s === 'House' ? 'house' : s === 'Work' ? 'work' : 'personal';
+  const list = cats[key(sheet)];
+  if (!list) return;
+  const idx = list.findIndex(c => c === oldName);
+  if (idx === -1) return;
+  if (list.some((c, i) => i !== idx && c.toLowerCase() === newName.toLowerCase())) {
+    alert('A category with that name already exists.'); renderSettings(); return;
+  }
+  list[idx] = newName;
+  await saveCategories(cats);
+  showCorrectionToast(`Renamed "${oldName}" → "${newName}"`);
+  renderSettings();
+}
+
 async function moveCategoryToSheet(cat, fromSheet, toSheet) {
   const cats = await loadCategories();
-  const key  = s => s==='House'?'house':s==='Work'?'work':'personal';
+  const key  = s => s === 'House' ? 'house' : s === 'Work' ? 'work' : 'personal';
   const from = cats[key(fromSheet)];
   const to   = cats[key(toSheet)];
   if (!from || !to) return;
@@ -3595,40 +3677,7 @@ async function moveCategoryToSheet(cat, fromSheet, toSheet) {
   from.splice(idx, 1);
   if (!to.includes(cat)) to.push(cat);
   await saveCategories(cats);
-  showCorrectionToast(`Moved "${cat}" to ${toSheet}`);
-  renderSettings();
-}
-
-function startRename(labelEl, oldName, sheet) {
-  const input = document.createElement('input');
-  input.className = 'cat-pill-rename-input';
-  input.value = oldName;
-  input.style.width = Math.max(60, oldName.length * 8) + 'px';
-  labelEl.replaceWith(input);
-  input.focus(); input.select();
-  const commit = async () => {
-    const newName = input.value.trim();
-    if (!newName || newName === oldName) { renderSettings(); return; }
-    await renameCategory(oldName, newName, sheet);
-  };
-  input.onblur  = commit;
-  input.onkeydown = e => { if (e.key==='Enter'){e.preventDefault();input.blur();} if(e.key==='Escape') renderSettings(); };
-}
-
-async function renameCategory(oldName, newName, sheet) {
-  if (!newName || newName === oldName) return;
-  const cats = await loadCategories();
-  const key  = s => s==='House'?'house':s==='Work'?'work':'personal';
-  const list = cats[key(sheet)];
-  if (!list) return;
-  const idx = list.findIndex(c => c === oldName);
-  if (idx === -1) return;
-  if (list.some((c,i) => i!==idx && c.toLowerCase()===newName.toLowerCase())) {
-    alert('A category with that name already exists.'); renderSettings(); return;
-  }
-  list[idx] = newName;
-  await saveCategories(cats);
-  showCorrectionToast(`Renamed "${oldName}" to "${newName}"`);
+  showCorrectionToast(`"${cat}" moved to ${toSheet}`);
   renderSettings();
 }
 
@@ -4199,239 +4248,236 @@ async function renderUsageCharts(data, keys, usageData) {
 // IOU RECONCILIATION ENGINE
 // ═══════════════════════════
 
-const REIMB_KEYWORDS = [
-  'electricity','genesis','power','wifi','internet','broadband',
-  'water','watercare','council','rates','insurance','groceries',
-  'pak n save','woolworths','countdown','new world','house',
-  'transfer','reimb','half','share','split','contrib','bill'
-];
+// localStorage key for confirmed/dismissed reconciliation state
+const RECON_KEY = 'pakaraka_recon_v2';
+function _loadReconState()  { try { return JSON.parse(localStorage.getItem(RECON_KEY) || '{}'); } catch { return {}; } }
+function _saveReconState(s) { localStorage.setItem(RECON_KEY, JSON.stringify(s)); }
 
-function scoreReimbMatch(myTxn, otherHouseTxn) {
+function _scoreMatch(myTxn, theirTxn) {
+  // Score how likely myTxn is a reimbursement for theirTxn (a house expense they paid)
   let score = 0;
-  const desc = (myTxn.description || '').toLowerCase();
-  const memo = (myTxn.notes || '').toLowerCase();
-  const combined = desc + ' ' + memo;
-  const catWords = (otherHouseTxn.category || '').toLowerCase().split(/\s+/);
+  const desc = ((myTxn.description || '') + ' ' + (myTxn.notes || '')).toLowerCase();
 
-  // Amount: my payment should be ~half of their house expense
-  const half = Math.abs(otherHouseTxn.amount) / 2;
-  const mine = Math.abs(myTxn.amount);
-  const diff = Math.abs(mine - half);
-  const ratio = diff / (half || 1);
-  if (ratio < 0.02)       score += 50;
-  else if (ratio < 0.08)  score += 35;
-  else if (ratio < 0.20)  score += 15;
-  else if (ratio > 0.50)  score -= 25;
+  // ── Amount: my payment should be ~half of their expense ──
+  const target = Math.abs(theirTxn.amount) / 2;
+  const mine   = Math.abs(myTxn.amount);
+  const pct    = Math.abs(mine - target) / (target || 1);
+  if (pct < 0.01)       score += 55;
+  else if (pct < 0.05)  score += 40;
+  else if (pct < 0.15)  score += 20;
+  else if (pct < 0.30)  score += 8;
+  else                  score -= 20;
 
-  // Category keyword match
-  catWords.forEach(w => { if (w.length > 2 && combined.includes(w)) score += 20; });
+  // ── Category keyword in my description ──
+  const catWords = (theirTxn.category || '').toLowerCase().replace(/[^a-z\s]/g,'').split(/\s+/).filter(w => w.length > 2);
+  catWords.forEach(w => { if (desc.includes(w)) score += 18; });
 
-  // Generic reimbursement keywords
-  REIMB_KEYWORDS.forEach(kw => { if (combined.includes(kw)) score += 6; });
+  // ── Common reimbursement words ──
+  ['reimb','transfer','tfr','half','share','split','electricity','genesis','water','watercare',
+   'wifi','internet','broadband','rates','council','insurance','groceries','pak n save',
+   'woolworths','countdown','new world'].forEach(kw => { if (desc.includes(kw)) score += 7; });
 
-  // Date proximity (within same or adjacent month)
+  // ── Date proximity ──
   try {
-    const parseD = d => {
-      const m = (d||'').match(/(\d{2})\/(\d{2})(?:\/(\d{4}))?/);
-      if (!m) return null;
-      const yr = m[3] ? +m[3] : new Date().getFullYear();
-      return new Date(yr, +m[2]-1, +m[1]);
-    };
-    const d1 = parseD(myTxn.date), d2 = parseD(otherHouseTxn.date);
+    const pd = d => { const m = (d||'').match(/(\d{2})\/(\d{2})(?:\/(\d{4}))?/); return m ? new Date(m[3]||new Date().getFullYear(), +m[2]-1, +m[1]) : null; };
+    const d1 = pd(myTxn.date), d2 = pd(theirTxn.date);
     if (d1 && d2) {
-      const days = Math.abs(d1 - d2) / 86400000;
-      if (days <= 3)       score += 20;
+      const days = Math.abs(d1-d2)/86400000;
+      if      (days <= 2)  score += 20;
       else if (days <= 7)  score += 12;
-      else if (days <= 21) score += 5;
-      else if (days > 45)  score -= 15;
+      else if (days <= 21) score +=  5;
+      else if (days > 45)  score -= 12;
     }
   } catch(_) {}
 
-  // Outgoing payment (negative amount = money leaving = reimbursement)
-  if (myTxn.amount < 0) score += 8;
+  // ── Direction: money going out = reimbursement ──
+  if (myTxn.amount < 0) score += 6;
 
   return Math.max(0, score);
 }
 
-function confLabel(score) {
-  if (score >= 60) return { text: 'Strong match',   cls: 'recon-confidence-high' };
-  if (score >= 35) return { text: 'Possible match', cls: 'recon-confidence-med' };
-  return               { text: 'Weak match',     cls: 'recon-confidence-low' };
+function _confBadge(score) {
+  if (score >= 55) return { label: 'Strong match',   cls: 'recon-badge-high' };
+  if (score >= 30) return { label: 'Possible match', cls: 'recon-badge-med'  };
+  return               { label: 'Weak match',     cls: 'recon-badge-low'  };
 }
 
-let _reconState = {};
-function loadReconState()  { try { return JSON.parse(localStorage.getItem('pakaraka_recon')||'{}'); } catch { return {}; } }
-function saveReconState(s) { localStorage.setItem('pakaraka_recon', JSON.stringify(s)); }
-
 async function runReconciliation() {
-  const { peter, tony } = await loadAllUsersData();
-  const uid       = getUserId();
-  const myData    = uid === 'tony' ? tony  : peter;
-  const otherData = uid === 'tony' ? peter : tony;
-  const otherName = uid === 'tony' ? 'Peter' : 'Tony';
-
-  const houseCats = getHouseCatsSync();
-  _reconState = loadReconState();
-
-  // Other person's house expense transactions
-  const otherHouseTxns = [];
-  Object.entries(otherData).forEach(([mk, mData]) => {
-    (mData.transactions || []).forEach(t => {
-      if (houseCats.includes(t.category) && t.sheet === 'House' && Math.abs(t.amount) > 5)
-        otherHouseTxns.push({ ...t, monthKey: mk, monthLabel: mData.label });
-    });
-  });
-
-  // My transactions — each gets a stable key
-  const myTxns = [];
-  Object.entries(myData).forEach(([mk, mData]) => {
-    (mData.transactions || []).forEach((t, i) => {
-      myTxns.push({ ...t, monthKey: mk, monthLabel: mData.label,
-        _key: `${mk}__${i}__${t.date}__${t.amount}` });
-    });
-  });
-
-  // Score every pairing, keep only ones with candidates
-  const items = otherHouseTxns.map(ht => {
-    const reconId = `${ht.monthKey}__${ht.date}__${ht.description}__${ht.amount}`;
-    const candidates = myTxns
-      .map(t => ({ txn: t, score: scoreReimbMatch(t, ht) }))
-      .filter(c => c.score > 20)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 8);
-    return { reconId, houseTxn: ht, candidates, otherName };
-  }).filter(item => {
-    const st = _reconState[item.reconId];
-    // Show if: has candidates, or previously approved, skip if dismissed with no candidates
-    return item.candidates.length > 0 || st?.approved;
-  });
-
   const card = document.getElementById('iou-recon-card');
   const body = document.getElementById('iou-recon-body');
   if (!card || !body) return;
 
-  if (!items.length) { card.style.display = 'none'; return; }
+  const { peter, tony } = await loadAllUsersData();
+  const uid         = getUserId();
+  const myData      = uid === 'tony' ? tony  : peter;
+  const theirData   = uid === 'tony' ? peter : tony;
+  const theirName   = uid === 'tony' ? 'Peter' : 'Tony';
+  const houseCats   = getHouseCatsSync();
+  const reconState  = _loadReconState();
+
+  // Collect their house expense transactions (they paid in full)
+  const theirHouseTxns = [];
+  Object.entries(theirData).forEach(([mk, md]) => {
+    (md.transactions || []).forEach(t => {
+      if (t.sheet === 'House' && houseCats.includes(t.category) && Math.abs(t.amount) > 5)
+        theirHouseTxns.push({ ...t, _mk: mk, _ml: md.label });
+    });
+  });
+
+  // Collect my transactions — assign stable keys
+  const myTxns = [];
+  Object.entries(myData).forEach(([mk, md]) => {
+    (md.transactions || []).forEach((t, i) => {
+      myTxns.push({ ...t, _mk: mk, _ml: md.label, _key: `${mk}|${i}|${t.date}|${t.amount}` });
+    });
+  });
+
+  // For each of their house txns, find my best candidates
+  const items = theirHouseTxns.map(ht => {
+    const rid = `${ht._mk}|${ht.date}|${ht.description}|${ht.amount}`;
+    const cands = myTxns
+      .map(t => ({ t, s: _scoreMatch(t, ht) }))
+      .filter(x => x.s > 18)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 10);
+    return { rid, ht, cands };
+  }).filter(item => {
+    const st = reconState[item.rid];
+    return item.cands.length > 0 || (st && st.confirmed);
+  });
+
+  if (!items.length) {
+    card.style.display = 'none';
+    return;
+  }
   card.style.display = 'block';
 
-  const pending   = items.filter(i => !_reconState[i.reconId]?.approved && !_reconState[i.reconId]?.dismissed);
-  const confirmed = items.filter(i =>  _reconState[i.reconId]?.approved);
+  const pending   = items.filter(i => !reconState[i.rid]?.confirmed && !reconState[i.rid]?.dismissed);
+  const confirmed = items.filter(i =>  reconState[i.rid]?.confirmed);
 
   let html = '';
 
   if (pending.length) {
-    html += `<p style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:.75rem">
-      ${pending.length} unconfirmed — review each suggested match below
+    html += `<p style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:.85rem">
+      ${pending.length} unconfirmed — review each match below and confirm or pick a different transaction
     </p>`;
-    pending.forEach(item => { html += buildReconCard(item, myTxns, false); });
+    pending.forEach(item => { html += _buildReconCard(item, myTxns, reconState, theirName, false); });
   }
   if (confirmed.length) {
-    html += `<p style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin:.85rem 0 .5rem">
-      ${confirmed.length} confirmed
-    </p>`;
-    confirmed.forEach(item => { html += buildReconCard(item, myTxns, true); });
+    html += `<details style="margin-top:${pending.length?'1rem':'0'}">
+      <summary style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);cursor:pointer;margin-bottom:.5rem;list-style:none">
+        ▸ ${confirmed.length} confirmed match${confirmed.length>1?'es':''}
+      </summary>`;
+    confirmed.forEach(item => { html += _buildReconCard(item, myTxns, reconState, theirName, true); });
+    html += '</details>';
   }
 
   body.innerHTML = html;
 }
 
-function buildReconCard(item, myTxns, isConfirmed) {
-  const { reconId, houseTxn, candidates, otherName } = item;
-  const state = _reconState[reconId] || {};
-  const matchKey  = state.matchedTxnKey || (candidates[0]?.txn._key);
-  const matchedTxn = myTxns.find(t => t._key === matchKey) || candidates[0]?.txn;
-  const topScore   = candidates.find(c => c.txn._key === matchKey)?.score || candidates[0]?.score || 0;
-  const conf = isConfirmed ? { text: '✓ Confirmed', cls: 'recon-confidence-high' } : confLabel(topScore);
-  const halfAmt = (Math.abs(houseTxn.amount) / 2).toFixed(2);
+function _buildReconCard(item, myTxns, reconState, theirName, isConfirmed) {
+  const { rid, ht, cands } = item;
+  const st       = reconState[rid] || {};
+  const selKey   = st.selectedKey || (cands[0]?.t._key);
+  const matched  = myTxns.find(t => t._key === selKey) || cands[0]?.t;
+  const topScore = cands.find(c => c.t._key === selKey)?.s || cands[0]?.s || 0;
+  const badge    = isConfirmed ? { label: '✓ Confirmed', cls: 'recon-badge-high' } : _confBadge(topScore);
+  const half     = (Math.abs(ht.amount) / 2).toFixed(2);
 
-  const altOptions = candidates.map(c =>
-    `<option value="${c.txn._key.replace(/"/g,'&quot;')}"${c.txn._key===matchKey?' selected':''}>
-      ${c.txn.date} · ${(c.txn.description||'').slice(0,30)} · $${Math.abs(c.txn.amount).toFixed(2)} (score:${c.score})
-    </option>`
-  ).join('');
+  // Build alternate-transaction options
+  const opts = cands.map(c => {
+    const sel = c.t._key === selKey ? ' selected' : '';
+    const lbl = `${c.t.date} · ${(c.t.description||'').slice(0,32)} · $${Math.abs(c.t.amount).toFixed(2)}`;
+    return `<option value="${c.t._key.replace(/"/g,'&quot;')}"${sel}>${lbl} (score: ${c.s})</option>`;
+  }).join('');
 
-  // Use data-id attributes so we avoid inline JS string-escaping of reconId
-  const safeId = reconId.replace(/[^a-zA-Z0-9]/g,'_');
+  // Encode rid for use in data attributes (no inline JS strings with arbitrary content)
+  const ridEnc = encodeURIComponent(rid);
+  const keyEnc = encodeURIComponent(selKey || '');
 
   return `<div class="recon-card">
-    <div class="recon-header">
-      <div class="recon-side">
-        <div style="font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:3px">${otherName} paid</div>
-        <div style="font-weight:500;font-size:.88rem">${houseTxn.description}</div>
-        <div style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--blue);margin-top:2px">$${Math.abs(houseTxn.amount).toFixed(2)} · ${houseTxn.category}</div>
-        <div style="font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text3)">${houseTxn.date} ${houseTxn.monthLabel}</div>
+    <div class="recon-layout">
+      <!-- LEFT: their house expense -->
+      <div class="recon-col recon-col-left">
+        <div style="font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--blue);margin-bottom:5px">${theirName} paid</div>
+        <div style="font-weight:600;font-size:.9rem;margin-bottom:3px">${ht.description}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:.8rem;color:var(--blue)">$${Math.abs(ht.amount).toFixed(2)}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text3);margin-top:3px">${ht.category} · ${ht.date} ${ht._ml}</div>
       </div>
-      <div class="recon-arrow">
-        ⟶<br>
-        <span style="font-family:'DM Mono',monospace;font-size:.6rem;color:var(--text3)">your half</span><br>
-        <span style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;color:var(--accent)">$${halfAmt}</span>
+      <!-- MIDDLE: arrow + half amount -->
+      <div class="recon-col-mid">
+        <span style="font-size:1.2rem;color:var(--text3)">⇄</span>
+        <span style="font-family:'DM Mono',monospace;font-size:.6rem;color:var(--text3);text-align:center">your half</span>
+        <span style="font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:600;color:var(--accent)">$${half}</span>
       </div>
-      <div class="recon-side" style="text-align:right">
-        <div style="font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:3px">Your payment</div>
-        ${matchedTxn ? `
-          <div style="font-weight:500;font-size:.88rem">${matchedTxn.description||'—'}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--red);margin-top:2px">$${Math.abs(matchedTxn.amount).toFixed(2)}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text3)">${matchedTxn.date} ${matchedTxn.monthLabel}</div>
-        ` : `<div style="color:var(--text3);font-size:.8rem;margin-top:8px">No match found</div>`}
+      <!-- RIGHT: my matched transaction -->
+      <div class="recon-col recon-col-right${isConfirmed?' confirmed':''}">
+        <div style="font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:5px">Your payment</div>
+        ${matched ? `
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:3px">${matched.description||'—'}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:.8rem;color:var(--red)">$${Math.abs(matched.amount).toFixed(2)}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text3);margin-top:3px">${matched.date} ${matched._ml}</div>
+        ` : '<div style="color:var(--text3);font-size:.82rem;margin-top:8px">No transaction found</div>'}
+        ${cands.length > 1 && !isConfirmed ? `
+          <div style="margin-top:8px">
+            <div style="font-family:'DM Mono',monospace;font-size:.6rem;color:var(--text3);margin-bottom:3px">Choose a different transaction:</div>
+            <select data-rid="${ridEnc}" onchange="reconPickAlt(this)"
+              style="width:100%;font-size:.72rem;padding:4px 6px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2)">
+              ${opts}
+            </select>
+          </div>
+        ` : ''}
       </div>
     </div>
-    <div class="recon-actions${isConfirmed?' confirmed':''}">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1">
-        <span class="${conf.cls}" style="font-family:'DM Mono',monospace;font-size:.65rem;font-weight:500">● ${conf.text}</span>
-        ${candidates.length > 1 && !isConfirmed ? `
-          <select data-recon-id="${safeId}" data-recon-raw="${reconId.replace(/"/g,'&quot;')}"
-            onchange="reconSelectAlt(this)"
-            style="font-size:.72rem;padding:3px 8px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);max-width:280px">
-            ${altOptions}
-          </select>` : ''}
-      </div>
+    <!-- FOOTER: confidence + action buttons -->
+    <div class="recon-footer${isConfirmed?' confirmed':''}">
+      <span class="recon-badge ${badge.cls}">${badge.label}</span>
       <div style="display:flex;gap:8px;align-items:center">
         ${isConfirmed
-          ? `<button class="btn btn-secondary" style="padding:.3rem .65rem;font-size:.62rem"
-               data-recon-raw="${reconId.replace(/"/g,'&quot;')}" onclick="reconUndo(this)">Undo</button>`
-          : `<button class="btn btn-secondary" style="padding:.3rem .65rem;font-size:.62rem"
-               data-recon-raw="${reconId.replace(/"/g,'&quot;')}" onclick="reconDismiss(this)">Dismiss</button>
-             <button class="btn btn-primary" style="padding:.3rem .65rem;font-size:.62rem"
-               data-recon-raw="${reconId.replace(/"/g,'&quot;')}"
-               data-match-key="${(matchKey||'').replace(/"/g,'&quot;')}"
-               onclick="reconApprove(this)">✓ Confirm match</button>`
+          ? `<button class="btn btn-secondary" style="padding:.3rem .7rem;font-size:.62rem"
+               data-rid="${ridEnc}" onclick="reconUndo(this)">Undo</button>`
+          : `<button class="btn btn-secondary" style="padding:.3rem .7rem;font-size:.62rem"
+               data-rid="${ridEnc}" onclick="reconDismiss(this)">Dismiss</button>
+             <button class="btn btn-primary" style="padding:.3rem .7rem;font-size:.62rem"
+               data-rid="${ridEnc}" data-key="${keyEnc}" onclick="reconConfirm(this)">✓ Confirm match</button>`
         }
       </div>
     </div>
   </div>`;
 }
 
-// These use element.dataset to avoid any JS string injection from category/description names
-function reconSelectAlt(el) {
-  const reconId = el.dataset.reconRaw;
-  if (!_reconState[reconId]) _reconState[reconId] = {};
-  _reconState[reconId].matchedTxnKey = el.value;
-  saveReconState(_reconState);
-  // Update the confirm button's data-match-key on the same actions row
-  const actionsDiv = el.closest('.recon-actions');
-  const confirmBtn = actionsDiv?.querySelector('[data-match-key]');
-  if (confirmBtn) confirmBtn.dataset.matchKey = el.value;
+function reconPickAlt(sel) {
+  const rid = decodeURIComponent(sel.dataset.rid);
+  const st  = _loadReconState();
+  if (!st[rid]) st[rid] = {};
+  st[rid].selectedKey = sel.value;
+  _saveReconState(st);
+  runReconciliation(); // re-render to update right column
 }
 
-function reconApprove(btn) {
-  const reconId = btn.dataset.reconRaw;
-  const matchKey = btn.dataset.matchKey;
-  _reconState[reconId] = { approved: true, matchedTxnKey: matchKey, approvedAt: new Date().toISOString() };
-  saveReconState(_reconState);
+function reconConfirm(btn) {
+  const rid = decodeURIComponent(btn.dataset.rid);
+  const key = decodeURIComponent(btn.dataset.key);
+  const st  = _loadReconState();
+  st[rid]   = { confirmed: true, selectedKey: key, at: new Date().toISOString() };
+  _saveReconState(st);
   showCorrectionToast('Match confirmed ✓');
   runReconciliation();
 }
 
 function reconDismiss(btn) {
-  const reconId = btn.dataset.reconRaw;
-  _reconState[reconId] = { dismissed: true };
-  saveReconState(_reconState);
+  const rid = decodeURIComponent(btn.dataset.rid);
+  const st  = _loadReconState();
+  st[rid]   = { dismissed: true };
+  _saveReconState(st);
   runReconciliation();
 }
 
 function reconUndo(btn) {
-  const reconId = btn.dataset.reconRaw;
-  delete _reconState[reconId];
-  saveReconState(_reconState);
+  const rid = decodeURIComponent(btn.dataset.rid);
+  const st  = _loadReconState();
+  delete st[rid];
+  _saveReconState(st);
   runReconciliation();
 }
 
@@ -4449,11 +4495,11 @@ Object.assign(window, {
   selectName, confirmOtherName, forgetUser,
   doLogin, doSignOut, togglePasswordVisibility,
   renderDashboard, refreshDashboard, renderHistory, refreshHistory, renderIOU, refreshIOU, renderIOUMonth, markIOUPaid,
-  addCategory, removeCategory, renameCategory, removeCorrection, clearCorrections,
+  addCategory, removeCategory, removeCorrection, clearCorrections,
   openSplitModal, closeSplitModal, updateSplitA, updateSplitB, confirmSplit, unsplitTransaction,
   togglePreview,
-  moveCategoryToSheet, startRename,
-  runReconciliation, reconSelectAlt, reconApprove, reconDismiss, reconUndo
+  moveCategoryToSheet, startCatRename: (a,b,c) => startCatRename(a,b,c), doRenameCategory,
+  runReconciliation, reconPickAlt, reconConfirm, reconDismiss, reconUndo
 });
 
 // ═══════════════════════════
