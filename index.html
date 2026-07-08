@@ -299,36 +299,7 @@ select:focus{outline:none;border-color:var(--accent)}
 @keyframes spin { to { transform: rotate(360deg); } }
 .loading-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--text); border-radius: 50%; animation: spin .7s linear infinite; }
 
-/* IOU TABLE */
-.iou-row {
-  display: grid;
-  grid-template-columns: 100px 1fr 90px 90px 110px;
-  gap: 8px;
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--border);
-  align-items: center;
-  font-size: .82rem;
-}
-.iou-row:last-child { border-bottom: none; }
-.iou-header {
-  font-family: 'DM Mono', monospace;
-  font-size: .62rem;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--text3);
-  background: var(--surface2);
-  border-radius: 6px;
-}
-.iou-grocery-row {
-  display: grid;
-  grid-template-columns: 100px 90px 90px 1fr 110px;
-  gap: 8px;
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--border);
-  align-items: center;
-  font-size: .82rem;
-}
-.iou-grocery-row:last-child { border-bottom: none; }
+/* IOU */
 .paid-btn {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 4px 10px; border-radius: 20px;
@@ -341,11 +312,6 @@ select:focus{outline:none;border-color:var(--accent)}
 .paid-done { border-color: var(--accent); color: var(--accent); background: var(--accent-l); }
 .iou-banner-owed { background: var(--amber-l); border: 1px solid var(--amber); }
 .iou-banner-clear { background: var(--accent-l); border: 1px solid var(--accent); }
-
-@media(max-width:600px) {
-  .iou-row, .iou-grocery-row { grid-template-columns: 80px 1fr 80px; }
-  .iou-row .hide-m, .iou-grocery-row .hide-m { display: none; }
-}
 
 /* DASH TABS */
 .dash-tabs {
@@ -583,49 +549,70 @@ select:focus{outline:none;border-color:var(--accent)}
   min-width: 50px; max-width: 150px;
 }
 
-/* ── IOU Reconciliation ── */
-.recon-card {
-  border: 1px solid var(--border); border-radius: 10px;
-  margin-bottom: .85rem; overflow: hidden;
-  transition: box-shadow .15s;
+/* ── IOU blocks (one per shared expense category) ── */
+.iou-block { margin-bottom: 1.25rem; }
+.iou-block-title { font-family:'Playfair Display',serif; font-size:1rem; font-weight:600; margin-bottom:.25rem; }
+.iou-block-sub { font-size:.8rem; color:var(--text2); margin-bottom:1rem; }
+.iou-block-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 130px 32px;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  align-items: center;
+  font-size: .82rem;
+  transition: border-color .15s, background .15s, box-shadow .15s;
 }
-.recon-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.07); }
-.recon-layout {
-  display: grid; grid-template-columns: 1fr 60px 1fr;
-  gap: 0; align-items: stretch;
+.iou-block-row.settled { opacity: .7; }
+.iou-block-row.drag-over { border-color: var(--text3); background: var(--surface2); }
+.iou-block-row.drag-suggested { border-color: var(--accent); background: var(--accent-l); box-shadow: 0 0 0 2px var(--accent-l); }
+.iou-evidence { font-size: .68rem; color: var(--text3); margin-top: 2px; }
+.iou-undo-btn {
+  border: 1px solid var(--border2); background: transparent; color: var(--text3);
+  border-radius: 6px; width: 26px; height: 26px; cursor: pointer; font-size: .8rem;
+  display:flex; align-items:center; justify-content:center;
 }
-.recon-col {
-  padding: 14px 16px;
-}
-.recon-col-mid {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 4px;
-  background: var(--surface2); padding: 12px 6px;
-  border-left: 1px solid var(--border); border-right: 1px solid var(--border);
-}
-.recon-col-left  { background: var(--blue-l);  border-right: none; }
-.recon-col-right { background: var(--surface);  }
-.recon-col-right.confirmed { background: var(--accent-l); }
-.recon-footer {
-  border-top: 1px solid var(--border);
-  padding: 10px 16px;
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; flex-wrap: wrap; background: var(--surface);
-}
-.recon-footer.confirmed { background: var(--accent-l); }
-.recon-badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 8px; border-radius: 20px;
-  font-family: 'DM Mono', monospace; font-size: .62rem;
-  text-transform: uppercase; letter-spacing: .04em;
-}
-.recon-badge-high { background: var(--accent-l); color: var(--accent); }
-.recon-badge-med  { background: var(--amber-l);  color: var(--amber); }
-.recon-badge-low  { background: var(--surface2); color: var(--text3); }
+.iou-undo-btn:hover { border-color: var(--red); color: var(--red); }
 @media(max-width:600px) {
-  .recon-layout { grid-template-columns: 1fr; }
-  .recon-col-mid { flex-direction: row; border: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 8px 16px; }
-  .recon-col-left { border-right: none; }
+  .iou-block-row { grid-template-columns: 70px 1fr 80px 32px; }
+  .iou-block-row .hide-m { display: none; }
+}
+
+/* ── IOU payments tray (drag source) ── */
+.iou-tray {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 400;
+  background: var(--surface); border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 16px rgba(0,0,0,.08);
+  max-width: 100%;
+}
+.iou-tray-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 1.25rem; cursor: pointer; user-select: none;
+  font-family: 'DM Mono', monospace; font-size: .68rem;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--text2);
+}
+.iou-tray-body {
+  display: flex; gap: 10px; overflow-x: auto;
+  padding: 0 1.25rem 14px;
+}
+.iou-tray.collapsed .iou-tray-body { display: none; }
+.iou-tray.collapsed #iou-tray-chevron { transform: rotate(-90deg); }
+.iou-chip {
+  flex: 0 0 auto; touch-action: none; cursor: grab;
+  border: 1px solid var(--border2); border-radius: 8px;
+  padding: 8px 12px; background: var(--surface2);
+  font-size: .75rem; line-height: 1.3; min-width: 140px;
+}
+.iou-chip.dragging { opacity: .35; }
+.iou-chip-amount { font-family:'DM Mono',monospace; font-weight:500; color: var(--red); }
+.iou-chip-desc { color: var(--text2); font-size:.7rem; margin-top:2px; }
+.iou-chip-ghost {
+  position: fixed; z-index: 900; pointer-events: none;
+  border: 1px solid var(--accent); border-radius: 8px;
+  padding: 8px 12px; background: var(--surface); box-shadow: 0 6px 20px rgba(0,0,0,.18);
+  font-size: .75rem; line-height: 1.3; min-width: 140px;
 }
 
 </style>
@@ -1122,62 +1109,24 @@ select:focus{outline:none;border-color:var(--accent)}
     <div class="empty"><div class="empty-icon">🤝</div><p>No data yet — both Peter and Tony need to save at least one month of transactions.</p></div>
   </div>
 
-  <div id="iou-content" style="display:none">
-    <!-- Running balance banner -->
+  <div id="iou-content" style="display:none;padding-bottom:6rem">
+    <!-- All-time balance banner -->
     <div id="iou-banner" style="border-radius:12px;padding:1.5rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem"></div>
 
-    <!-- Month selector -->
-    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap">
-      <span style="font-family:'DM Mono',monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">Viewing</span>
-      <select id="iou-month-select" onchange="renderIOUMonth()" style="font-size:.875rem"></select>
-      <button class="btn btn-secondary" style="padding:.35rem .85rem;font-size:.65rem" onclick="renderIOUMonth()">↺ Refresh</button>
-    </div>
+    <!-- One block per shared expense category, all months inside -->
+    <div id="iou-blocks"></div>
+  </div>
 
-    <!-- Utilities section -->
-    <div class="card">
-      <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;margin-bottom:.25rem">Utilities</div>
-      <div style="font-size:.8rem;color:var(--text2);margin-bottom:1rem">Peter pays first — Tony reimburses his half</div>
-      <div id="iou-utilities"></div>
+  <!-- Draggable payments tray -->
+  <div id="iou-tray" class="iou-tray" style="display:none">
+    <div class="iou-tray-header" onclick="toggleIOUTray()">
+      <span id="iou-tray-title">Your payments</span>
+      <span style="display:flex;align-items:center;gap:8px">
+        <span id="iou-tray-hint" class="hide-mobile" style="font-size:.68rem;color:var(--text2);font-weight:400">drag one onto an expense below to settle it</span>
+        <span id="iou-tray-chevron">▾</span>
+      </span>
     </div>
-
-    <!-- Groceries section -->
-    <div class="card">
-      <div style="display:flex;align-items:baseline;gap:.75rem;margin-bottom:.25rem;flex-wrap:wrap;justify-content:space-between">
-        <div>
-          <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600">Groceries</div>
-          <div style="font-size:.8rem;color:var(--text2);margin-top:2px">Weekly spend — split 50/50</div>
-        </div>
-        <div id="iou-groceries-balance" style="font-family:'DM Mono',monospace;font-size:.85rem;font-weight:500"></div>
-      </div>
-      <div id="iou-groceries"></div>
-    </div>
-
-    <!-- Car insurance section -->
-    <div class="card">
-      <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;margin-bottom:.25rem">Tony's Car Insurance</div>
-      <div style="font-size:.8rem;color:var(--text2);margin-bottom:1rem">Charged to Peter's credit card — Tony reimburses in full</div>
-      <div id="iou-insurance"></div>
-    </div>
-
-    <!-- Transaction Reconciliation -->
-    <div class="card" id="iou-recon-card" style="display:none">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem;flex-wrap:wrap;gap:.5rem">
-        <div>
-          <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600">My reimbursements to Tony</div>
-          <div style="font-size:.8rem;color:var(--text2);margin-top:2px">Transactions from your history matched to Tony's house expenses — confirm or pick the right one</div>
-        </div>
-        <button class="btn btn-secondary" style="padding:.35rem .85rem;font-size:.65rem" onclick="runReconciliation()">↺ Re-scan</button>
-      </div>
-      <div id="iou-recon-body">
-        <div class="empty" style="padding:2rem"><div class="empty-icon" style="font-size:1.5rem">🔍</div><p>Scanning your transactions…</p></div>
-      </div>
-    </div>
-
-    <!-- All months summary -->
-    <div class="card">
-      <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:600;margin-bottom:1rem">All time — outstanding balance</div>
-      <div id="iou-summary-table"></div>
-    </div>
+    <div class="iou-tray-body" id="iou-tray-body"></div>
   </div>
 </div>
 
@@ -1429,6 +1378,11 @@ function userCategoriesRef(userId) {
   return doc(db, 'users', userId || getUserId(), 'settings', 'categories');
 }
 
+// House categories are shared between Peter and Tony — single doc, not per-user.
+function sharedCategoriesRef() {
+  return doc(db, 'shared', 'categories');
+}
+
 function defaultPersonalCatsFor(userId) {
   return userId === 'tony' ? [...DEFAULT_TONY_PERSONAL_CATS] : [...DEFAULT_PERSONAL_CATS];
 }
@@ -1442,6 +1396,23 @@ function invalidateCategoriesCache() {
   _catsCacheForUser = null;
 }
 
+// One-time migration: merge whatever House categories each user has accumulated
+// in their (legacy) per-user doc into the new shared doc, so nobody's edits are lost.
+async function migrateHouseCategories() {
+  const merged = new Set(DEFAULT_HOUSE_CATS);
+  for (const uid of ['peter', 'tony']) {
+    try {
+      const snap = await getDoc(userCategoriesRef(uid));
+      if (snap.exists() && Array.isArray(snap.data().house)) {
+        snap.data().house.forEach(c => merged.add(c));
+      }
+    } catch (_) {}
+  }
+  const house = [...merged];
+  await setDoc(sharedCategoriesRef(), { house }, { merge: true });
+  return house;
+}
+
 async function loadCategories(userId) {
   const uid = userId || getUserId();
   if (_catsCache && _catsCacheForUser === uid) return _catsCache;
@@ -1451,27 +1422,23 @@ async function loadCategories(userId) {
   let work     = defaultWorkCatsFor(uid);
 
   try {
+    // House — shared doc, same list for both users
+    const houseSnap = await getDoc(sharedCategoriesRef());
+    if (houseSnap.exists() && Array.isArray(houseSnap.data().house) && houseSnap.data().house.length) {
+      house = houseSnap.data().house;
+    } else {
+      house = await migrateHouseCategories();
+    }
+
+    // Personal/work — per-user doc
     const snap = await getDoc(userCategoriesRef(uid));
     if (snap.exists()) {
       const d = snap.data();
-      if (Array.isArray(d.house))    house    = d.house;
       if (Array.isArray(d.personal)) personal = d.personal;
       if (Array.isArray(d.work))     work     = d.work;
       // If doc exists but work field missing (old format), keep default
     } else {
-      // First login — attempt one-time migration from old shared doc, then seed defaults
-      try {
-        const sh = await getDoc(doc(db, 'shared', 'categories'));
-        if (sh.exists()) {
-          const s = sh.data();
-          if (Array.isArray(s.house) && s.house.length) house = s.house;
-          if (uid === 'peter') {
-            if (Array.isArray(s.personal) && s.personal.length) personal = s.personal;
-            if (Array.isArray(s.work)     && s.work.length)     work     = s.work;
-          }
-        }
-      } catch (_) {}
-      await setDoc(userCategoriesRef(uid), { house, personal, work }, { merge: true });
+      await setDoc(userCategoriesRef(uid), { personal, work }, { merge: true });
     }
     _catsCache = { house, personal, work };
     _catsCacheForUser = uid;
@@ -1487,11 +1454,13 @@ async function saveCategories(cats) {
   _catsCache = cats;          // update cache immediately — UI stays correct
   _catsCacheForUser = uid;
   try {
-    await setDoc(userCategoriesRef(uid), {
-      house:    cats.house,
-      personal: cats.personal,
-      work:     Array.isArray(cats.work) ? cats.work : defaultWorkCatsFor(uid),
-    }, { merge: true });
+    await Promise.all([
+      setDoc(sharedCategoriesRef(), { house: cats.house }, { merge: true }),
+      setDoc(userCategoriesRef(uid), {
+        personal: cats.personal,
+        work:     Array.isArray(cats.work) ? cats.work : defaultWorkCatsFor(uid),
+      }, { merge: true }),
+    ]);
   } catch (e) {
     console.error('Categories save error:', e);
     showCorrectionToast('⚠ Save failed — check connection');
@@ -1577,7 +1546,7 @@ async function showPage(p) {
   if (p === 'dashboard') await renderDashboard();
   if (p === 'history') await renderHistory();
   if (p === 'settings') await renderSettings();
-  if (p === 'iou') { await renderIOU(); await runReconciliation(); }
+  if (p === 'iou') { await renderIOU(); }
   if (p === 'formulae') renderFormulaeReference();
 }
 
@@ -3770,261 +3739,189 @@ function saveIOUPayments(p) { localStorage.setItem(IOU_STORAGE_KEY, JSON.stringi
 // IOU payment key: category_monthKey e.g. "Electricity_2026-03"
 function iouKey(cat, monthKey) { return `${cat}__${monthKey}`; }
 
+// Which categories are treated as shared house expenses on the IOU tab, and how each is split.
+// 'half'/'full' = one-directional (Peter pays first, Tony reimburses his share).
+// netMonthly = bidirectional (either person may pay; owed = net difference between the two).
+const SHARED_EXPENSE_CATEGORIES = [
+  { cat: 'Electricity',   label: 'Electricity',   split: 'half' },
+  { cat: 'Water',         label: 'Water',         split: 'half' },
+  { cat: 'Wifi',          label: 'Wifi',          split: 'half' },
+  { cat: 'Council Rates', label: 'Council Rates', split: 'half' },
+  { cat: 'Groceries',     label: 'Groceries',     split: 'half', netMonthly: true },
+  { cat: 'Insurance',     label: "Tony's Car Insurance", split: 'full' },
+];
+
+let _iouDataCache = { peter: {}, tony: {} };
+let _iouTrayCandidates = [];
+let _iouTrayCollapsed = false;
+
+function sumCatFrom(monthData, cat) {
+  return (monthData?.transactions || []).filter(t => t.category === cat).reduce((s,t) => s + Math.abs(t.amount), 0);
+}
+
+// One row per (category, month) that has any activity — the unit the drag-to-settle UI acts on.
+function computeIOURows(peter, tony) {
+  const allKeys = [...new Set([...sortedKeys(peter), ...sortedKeys(tony)])].sort();
+  const rows = [];
+
+  SHARED_EXPENSE_CATEGORIES.forEach(cfg => {
+    allKeys.forEach(mk => {
+      const pData = peter[mk], tData = tony[mk];
+      const pPaid = sumCatFrom(pData, cfg.cat);
+      const tPaid = sumCatFrom(tData, cfg.cat);
+      if (pPaid === 0 && tPaid === 0) return;
+
+      let owedAmount = 0, owedBy = null, payerLabel = '', basisTxns = [];
+      if (cfg.netMonthly) {
+        const diff = pPaid - tPaid; // positive = tony owes peter, negative = peter owes tony
+        owedAmount = Math.abs(diff) / 2;
+        owedBy = diff > 0.005 ? 'tony' : diff < -0.005 ? 'peter' : null;
+        payerLabel = `Peter paid $${pPaid.toFixed(2)} · Tony paid $${tPaid.toFixed(2)}`;
+        basisTxns = [...(pData?.transactions||[]), ...(tData?.transactions||[])].filter(t => t.category === cfg.cat);
+      } else {
+        const fraction = cfg.split === 'full' ? 1 : 0.5;
+        owedAmount = Math.max(0, pPaid * fraction - tPaid);
+        owedBy = owedAmount > 0.005 ? 'tony' : null;
+        payerLabel = `Peter paid $${pPaid.toFixed(2)}`;
+        basisTxns = (pData?.transactions||[]).filter(t => t.category === cfg.cat);
+      }
+      basisTxns.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+
+      rows.push({
+        key: iouKey(cfg.cat, mk), cat: cfg.cat, label: cfg.label,
+        monthKey: mk, monthLbl: monthLabel(mk),
+        owedAmount, owedBy, payerLabel,
+        basisDate: basisTxns[basisTxns.length-1]?.date || '',
+        basisDesc: basisTxns.map(t => t.description).filter(Boolean).join(', '),
+      });
+    });
+  });
+
+  return rows;
+}
+
 async function renderIOU() {
   const { peter, tony } = await loadAllUsersData();
-  const peterKeys = sortedKeys(peter);
-  const tonyKeys = sortedKeys(tony);
-  const allKeys = [...new Set([...peterKeys, ...tonyKeys])].sort();
+  _iouDataCache = { peter, tony };
 
-  if (!allKeys.length) {
+  if (!sortedKeys(peter).length && !sortedKeys(tony).length) {
     document.getElementById('iou-empty').style.display = 'block';
     document.getElementById('iou-content').style.display = 'none';
+    document.getElementById('iou-tray').style.display = 'none';
     return;
   }
   document.getElementById('iou-empty').style.display = 'none';
   document.getElementById('iou-content').style.display = 'block';
 
-  // Populate month selector
-  const sel = document.getElementById('iou-month-select');
-  sel.innerHTML = allKeys.slice().reverse().map(k =>
-    `<option value="${k}">${monthLabel(k)}</option>`
-  ).join('');
-
-  await renderIOUMonth();
-  renderIOUSummary(peter, tony, allKeys);
+  const rows = computeIOURows(peter, tony);
+  renderIOUBanner(rows);
+  renderIOUBlocks(rows);
+  renderIOUTray(rows);
 }
 
-async function renderIOUMonth() {
-  const { peter, tony } = await loadAllUsersData();
-  const key = document.getElementById('iou-month-select')?.value;
-  if (!key) return;
-
-  const pData = peter[key];
-  const tData = tony[key];
+function renderIOUBanner(rows) {
   const payments = loadIOUPayments();
-
-  // Helper: sum a category from a month's transactions
-  const sumCatFrom = (monthData, cat) => {
-    if (!monthData?.transactions) return 0;
-    return monthData.transactions.filter(t => t.category === cat).reduce((s,t) => s+Math.abs(t.amount), 0);
-  };
-
-  // ── UTILITIES ──
-  // Peter pays electricity, wifi, water — Tony owes half
-  const utilCats = ['Electricity','Wifi','Water'];
-  let utilOwed = 0;
-  const utilRows = utilCats.map(cat => {
-    const peterPaid = sumCatFrom(pData, cat);
-    const tonyPaid = sumCatFrom(tData, cat);
-    const total = peterPaid + tonyPaid;
-    if (total === 0) return null;
-
-    const k = iouKey(cat, key);
-    const isPaid = !!payments[k];
-    const tonyOwes = peterPaid / 2; // Tony owes half of what Peter paid
-    const tonyAlreadyPaid = tonyPaid; // Tony's own direct payments
-    const outstanding = Math.max(0, tonyOwes - tonyAlreadyPaid);
-    if (!isPaid) utilOwed += outstanding;
-
-    const statusHtml = outstanding <= 0 || isPaid
-      ? `<span class="paid-btn paid-done">✓ Settled</span>`
-      : `<button class="paid-btn paid-pending" onclick="markIOUPaid('${k}','utilities')">Mark paid</button>`;
-
-    return `<div class="iou-row">
-      <span style="font-weight:500">${cat}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text3)">${monthLabel(key)}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:.8rem">$${peterPaid.toFixed(2)}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:.8rem;color:${outstanding>0&&!isPaid?'var(--amber)':'var(--accent)'}">$${outstanding.toFixed(2)}</span>
-      <span>${statusHtml}</span>
-    </div>`;
-  }).filter(Boolean);
-
-  document.getElementById('iou-utilities').innerHTML = utilRows.length
-    ? `<div class="iou-row iou-header"><span>Category</span><span>Month ref</span><span>Peter paid</span><span>Tony owes</span><span>Status</span></div>${utilRows.join('')}`
-    : `<p style="font-size:.875rem;color:var(--text3);padding:.5rem 0">No utility expenses found for ${monthLabel(key)}.</p>`;
-
-  // ── GROCERIES ──
-  // Both pay groceries — show weekly breakdown and who owes who
-  const pGroceries = (pData?.transactions||[]).filter(t => t.category === 'Groceries');
-  const tGroceries = (tData?.transactions||[]).filter(t => t.category === 'Groceries');
-  const pGrocTotal = pGroceries.reduce((s,t) => s+Math.abs(t.amount), 0);
-  const tGrocTotal = tGroceries.reduce((s,t) => s+Math.abs(t.amount), 0);
-  const grocTotal = pGrocTotal + tGrocTotal;
-  const ideal = grocTotal / 2;
-  const grocOwed = pGrocTotal - ideal; // positive = tony owes peter, negative = peter owes tony
-
-  const grocKey = iouKey('Groceries', key);
-  const grocPaid = !!payments[grocKey];
-
-  document.getElementById('iou-groceries-balance').innerHTML = grocTotal > 0
-    ? grocOwed > 0
-      ? `<span style="color:var(--amber)">Tony owes Peter $${grocOwed.toFixed(2)}</span>`
-      : grocOwed < 0
-        ? `<span style="color:var(--blue)">Peter owes Tony $${Math.abs(grocOwed).toFixed(2)}</span>`
-        : `<span style="color:var(--accent)">Even ✓</span>`
-    : '';
-
-  if (pGroceries.length || tGroceries.length) {
-    // Group by week
-    const allGroc = [
-      ...pGroceries.map(t => ({...t, person:'Peter'})),
-      ...tGroceries.map(t => ({...t, person:'Tony'}))
-    ].sort((a,b) => (a.date||'').localeCompare(b.date||''));
-
-    const rows = allGroc.map(t => `
-      <div class="iou-grocery-row">
-        <span style="font-family:'DM Mono',monospace;font-size:.72rem;color:var(--text3)">${t.date}</span>
-        <span class="badge ${t.person==='Peter'?'badge-green':'badge-blue'}" style="font-size:.65rem">${t.person}</span>
-        <span style="font-family:'DM Mono',monospace;font-size:.8rem;font-weight:500">$${Math.abs(t.amount).toFixed(2)}</span>
-        <span style="font-size:.78rem;color:var(--text2)">${t.description}</span>
-        <span></span>
-      </div>`).join('');
-
-    const summaryRow = grocTotal > 0 ? `
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px;background:var(--surface2);border-radius:8px;margin-top:.75rem;font-size:.82rem">
-        <div><div style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:3px">Peter total</div><strong>$${pGrocTotal.toFixed(2)}</strong></div>
-        <div><div style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:3px">Tony total</div><strong>$${tGrocTotal.toFixed(2)}</strong></div>
-        <div><div style="font-family:'DM Mono',monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:3px">Settlement</div>
-          ${grocOwed > 0
-            ? `<strong style="color:var(--amber)">Tony → Peter $${grocOwed.toFixed(2)}</strong>`
-            : grocOwed < 0
-              ? `<strong style="color:var(--blue)">Peter → Tony $${Math.abs(grocOwed).toFixed(2)}</strong>`
-              : `<strong style="color:var(--accent)">Even ✓</strong>`}
-        </div>
-      </div>
-      ${Math.abs(grocOwed) > 0 ? `<div style="margin-top:.75rem;display:flex;gap:.75rem;align-items:center">
-        ${grocPaid
-          ? `<span class="paid-btn paid-done">✓ Settled</span>`
-          : `<button class="paid-btn paid-pending" onclick="markIOUPaid('${grocKey}','groceries')">Mark settled</button>`}
-      </div>` : ''}` : '';
-
-    document.getElementById('iou-groceries').innerHTML = `
-      <div class="iou-grocery-row iou-header"><span>Date</span><span>Person</span><span>Amount</span><span>Shop</span><span></span></div>
-      ${rows}${summaryRow}`;
-  } else {
-    document.getElementById('iou-groceries').innerHTML = `<p style="font-size:.875rem;color:var(--text3);padding:.5rem 0">No grocery transactions found for ${monthLabel(key)}.</p>`;
-  }
-
-  // ── CAR INSURANCE ──
-  const insuranceCat = (pData?.transactions||[]).filter(t =>
-    t.category === 'Insurance' || (t.description||'').toLowerCase().includes('state') || (t.description||'').toLowerCase().includes('iag')
-  );
-  const insuranceTotal = insuranceCat.reduce((s,t) => s+Math.abs(t.amount), 0);
-  const insKey = iouKey('Insurance', key);
-  const insPaid = !!payments[insKey];
-
-  if (insuranceCat.length) {
-    const rows = insuranceCat.map(t => `
-      <div class="iou-row">
-        <span style="font-weight:500">${t.description}</span>
-        <span style="font-family:'DM Mono',monospace;font-size:.72rem;color:var(--text3)">${t.date}</span>
-        <span style="font-family:'DM Mono',monospace;font-size:.8rem;font-weight:500">$${Math.abs(t.amount).toFixed(2)}</span>
-        <span style="font-family:'DM Mono',monospace;font-size:.8rem;color:${insPaid?'var(--accent)':'var(--amber)'}">$${Math.abs(t.amount).toFixed(2)}</span>
-        <span>${insPaid
-          ? `<span class="paid-btn paid-done">✓ Paid in full</span>`
-          : `<button class="paid-btn paid-pending" onclick="markIOUPaid('${insKey}','insurance')">Mark paid</button>`}</span>
-      </div>`).join('');
-
-    document.getElementById('iou-insurance').innerHTML = `
-      <div class="iou-row iou-header"><span>Policy</span><span>Date</span><span>Amount</span><span>Tony owes</span><span>Status</span></div>
-      ${rows}`;
-  } else {
-    document.getElementById('iou-insurance').innerHTML = `<p style="font-size:.875rem;color:var(--text3);padding:.5rem 0">No insurance expenses found for ${monthLabel(key)}.</p>`;
-  }
-
-  // Update banner
-  const insOwed = insuranceTotal > 0 && !insPaid ? insuranceTotal : 0;
-  const grocBal = !grocPaid ? Math.max(0, grocOwed) : 0;
-  const totalOwed = utilOwed + grocBal + insOwed;
-
+  let tonyOwesPeter = 0, peterOwesTony = 0;
+  rows.forEach(r => {
+    if (payments[r.key] || r.owedAmount <= 0.005) return;
+    if (r.owedBy === 'tony') tonyOwesPeter += r.owedAmount;
+    else if (r.owedBy === 'peter') peterOwesTony += r.owedAmount;
+  });
+  const net = tonyOwesPeter - peterOwesTony;
   const banner = document.getElementById('iou-banner');
-  if (totalOwed > 0) {
-    banner.className = 'iou-banner-owed';
+
+  if (Math.abs(net) <= 0.005) {
+    banner.style.cssText = 'border-radius:12px;padding:1.5rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;background:var(--accent-l);border:1px solid var(--accent)';
+    banner.innerHTML = `<div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:600;color:var(--accent)">✓ All settled — no outstanding balance</div>`;
+  } else {
     banner.style.cssText = 'border-radius:12px;padding:1.5rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;background:var(--amber-l);border:1px solid var(--amber)';
+    const who = net > 0 ? 'Tony owes Peter' : 'Peter owes Tony';
     banner.innerHTML = `
       <div>
-        <div style="font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:600;color:var(--amber)">Tony owes Peter $${totalOwed.toFixed(2)}</div>
-        <div style="font-size:.8rem;color:var(--text2);margin-top:3px">for ${monthLabel(key)} — ${[utilOwed>0?`utilities $${utilOwed.toFixed(2)}`:'',grocBal>0?`groceries $${grocBal.toFixed(2)}`:'',insOwed>0?`insurance $${insOwed.toFixed(2)}`:''].filter(Boolean).join(' · ')}</div>
+        <div style="font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:600;color:var(--amber)">${who} $${Math.abs(net).toFixed(2)}</div>
+        <div style="font-size:.8rem;color:var(--text2);margin-top:3px">across all outstanding shared expenses</div>
       </div>`;
-  } else {
-    banner.style.cssText = 'border-radius:12px;padding:1.5rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;background:var(--accent-l);border:1px solid var(--accent)';
-    banner.innerHTML = `<div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:600;color:var(--accent)">✓ All settled for ${monthLabel(key)}</div>`;
   }
 }
 
-function markIOUPaid(key, type) {
+function renderIOUBlocks(rows) {
   const payments = loadIOUPayments();
-  payments[key] = { paidAt: new Date().toISOString(), type };
-  saveIOUPayments(payments);
-  showCorrectionToast('Marked as paid ✓');
-  renderIOUMonth();
-  const { peter, tony } = { peter: _cache['peter']||{}, tony: _cache['tony']||{} };
-  renderIOUSummary(peter, tony, [...new Set([...sortedKeys(peter), ...sortedKeys(tony)])].sort());
+  const container = document.getElementById('iou-blocks');
+
+  const blocksHtml = SHARED_EXPENSE_CATEGORIES.map(cfg => {
+    const catRows = rows.filter(r => r.cat === cfg.cat).sort((a,b) => b.monthKey.localeCompare(a.monthKey));
+    if (!catRows.length) return '';
+
+    const recent = catRows.slice(0, 3);
+    const older = catRows.slice(3);
+    const sub = cfg.netMonthly
+      ? 'Weekly spend — split 50/50, settled monthly'
+      : cfg.split === 'full'
+        ? 'Charged to Peter — Tony reimburses in full'
+        : 'Peter pays first — reimbursed half';
+
+    return `<div class="iou-block">
+      <div class="iou-block-title">${cfg.label}</div>
+      <div class="iou-block-sub">${sub}</div>
+      ${recent.map(r => buildIOURowHtml(r, payments)).join('')}
+      ${older.length ? `<details>
+        <summary style="cursor:pointer;font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);padding:6px 2px;list-style:none">▸ ${older.length} earlier month${older.length>1?'s':''}</summary>
+        ${older.map(r => buildIOURowHtml(r, payments)).join('')}
+      </details>` : ''}
+    </div>`;
+  }).filter(Boolean).join('');
+
+  container.innerHTML = blocksHtml || `<div class="card"><div class="empty"><div class="empty-icon">🤝</div><p>No shared expenses recorded yet.</p></div></div>`;
 }
 
-function renderIOUSummary(peter, tony, allKeys) {
+function buildIOURowHtml(r, payments) {
+  const paid = payments[r.key];
+  const isEven = r.owedAmount <= 0.005;
+  const isSettled = !!paid || isEven;
+  const uid = getUserId();
+  const isMyDrop = r.owedBy === uid && !isSettled;
+  const oweeLabel = r.owedBy === 'tony' ? 'Tony owes Peter' : r.owedBy === 'peter' ? 'Peter owes Tony' : '';
+
+  const statusHtml = isEven
+    ? `<span class="paid-btn paid-done">✓ Even</span>`
+    : paid
+      ? `<span class="paid-btn paid-done">✓ Settled</span>`
+      : `<span class="paid-btn paid-pending">${isMyDrop ? 'Drop payment here' : 'Outstanding'}</span>`;
+
+  const zoneAttrs = isMyDrop
+    ? ` data-owed-amount="${r.owedAmount}" data-basis-date="${r.basisDate}" data-cat="${r.cat}"`
+    : '';
+
+  return `<div class="iou-block-row ${isSettled?'settled':''} ${isMyDrop?'iou-dropzone':''}" data-row-key="${r.key}"${zoneAttrs}>
+    <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text3)">${r.monthLbl}</span>
+    <span>
+      <span style="font-weight:500">${isEven ? 'Even ✓' : `$${r.owedAmount.toFixed(2)} — ${oweeLabel}`}</span>
+      <div class="iou-evidence">${r.payerLabel}</div>
+      ${paid?.settledBy ? `<div class="iou-evidence">✓ settled by "${paid.settledBy.description||'—'}" (${paid.settledBy.date||''}) $${Math.abs(paid.settledBy.amount||0).toFixed(2)}</div>` : ''}
+    </span>
+    <span class="hide-m">${statusHtml}</span>
+    <span>${paid ? `<button class="iou-undo-btn" title="Undo settlement" onclick="undoIOURow('${r.key}')">↺</button>` : ''}</span>
+  </div>`;
+}
+
+function undoIOURow(key) {
   const payments = loadIOUPayments();
+  delete payments[key];
+  saveIOUPayments(payments);
+  showCorrectionToast('Settlement undone');
+  renderIOU();
+}
 
-  const rows = allKeys.slice().reverse().map(key => {
-    const pData = peter[key];
-    const tData = tony[key];
-
-    const sumCatFrom = (monthData, cat) => {
-      if (!monthData?.transactions) return 0;
-      return monthData.transactions.filter(t => t.category === cat).reduce((s,t) => s+Math.abs(t.amount), 0);
-    };
-
-    let totalOwed = 0;
-    let settled = 0;
-
-    // Utilities
-    ['Electricity','Wifi','Water'].forEach(cat => {
-      const pPaid = sumCatFrom(pData, cat);
-      const tPaid = sumCatFrom(tData, cat);
-      const outstanding = Math.max(0, pPaid/2 - tPaid);
-      if (payments[iouKey(cat, key)]) settled += outstanding;
-      else totalOwed += outstanding;
-    });
-
-    // Groceries
-    const pGroc = sumCatFrom(pData, 'Groceries');
-    const tGroc = sumCatFrom(tData, 'Groceries');
-    const grocOwed = Math.max(0, (pGroc - tGroc) / 2);
-    if (payments[iouKey('Groceries', key)]) settled += grocOwed;
-    else totalOwed += grocOwed;
-
-    // Insurance
-    const ins = sumCatFrom(pData, 'Insurance');
-    if (payments[iouKey('Insurance', key)]) settled += ins;
-    else totalOwed += ins;
-
-    const allSettled = totalOwed === 0;
-    return `<div class="tony-row">
-      <span style="font-weight:500">${monthLabel(key)}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:${totalOwed>0?'var(--amber)':'var(--accent)'}">$${totalOwed.toFixed(2)} outstanding</span>
-      <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--accent)">$${settled.toFixed(2)} settled</span>
-      <span><span class="paid-btn ${allSettled?'paid-done':'paid-pending'}" style="cursor:default">${allSettled?'✓ All clear':'Pending'}</span></span>
-      <span><button class="btn btn-secondary" style="padding:.3rem .65rem;font-size:.62rem" onclick="document.getElementById('iou-month-select').value='${key}';renderIOUMonth()">View →</button></span>
-    </div>`;
-  }).join('');
-
-  const totalOutstanding = allKeys.reduce((tot, key) => {
-    const pData = peter[key]; const tData = tony[key];
-    const sumCatFrom = (md, cat) => (md?.transactions||[]).filter(t=>t.category===cat).reduce((s,t)=>s+Math.abs(t.amount),0);
-    let owed = 0;
-    ['Electricity','Wifi','Water'].forEach(cat => { if (!payments[iouKey(cat,key)]) owed += Math.max(0, sumCatFrom(pData,cat)/2 - sumCatFrom(tData,cat)); });
-    const pG = sumCatFrom(pData,'Groceries'), tG = sumCatFrom(tData,'Groceries');
-    if (!payments[iouKey('Groceries',key)]) owed += Math.max(0, (pG-tG)/2);
-    if (!payments[iouKey('Insurance',key)]) owed += sumCatFrom(pData,'Insurance');
-    return tot + owed;
-  }, 0);
-
-  document.getElementById('iou-summary-table').innerHTML = `
-    <div style="font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:600;color:${totalOutstanding>0?'var(--amber)':'var(--accent)'};margin-bottom:1rem">
-      ${totalOutstanding > 0 ? `Tony owes Peter $${totalOutstanding.toFixed(2)} total` : '✓ All clear — no outstanding balances'}
-    </div>
-    <div class="tony-row tony-header"><span>Month</span><span>Outstanding</span><span>Settled</span><span>Status</span><span></span></div>
-    ${rows}`;
+function settleIOURow(rowKey, txn) {
+  const payments = loadIOUPayments();
+  payments[rowKey] = {
+    paidAt: new Date().toISOString(),
+    type: 'drag',
+    settledBy: { txnKey: txn.txnKey, date: txn.date, amount: txn.amount, description: txn.description },
+  };
+  saveIOUPayments(payments);
+  showCorrectionToast('Settled ✓');
+  renderIOU();
 }
 
 // ═══════════════════════════
@@ -4245,23 +4142,19 @@ async function renderUsageCharts(data, keys, usageData) {
 }
 
 // ═══════════════════════════
-// IOU RECONCILIATION ENGINE
+// IOU PAYMENT MATCHING + DRAG-TO-SETTLE
 // ═══════════════════════════
 
-// localStorage key for confirmed/dismissed reconciliation state
-const RECON_KEY = 'pakaraka_recon_v2';
-function _loadReconState()  { try { return JSON.parse(localStorage.getItem(RECON_KEY) || '{}'); } catch { return {}; } }
-function _saveReconState(s) { localStorage.setItem(RECON_KEY, JSON.stringify(s)); }
-
-function _scoreMatch(myTxn, theirTxn) {
-  // Score how likely myTxn is a reimbursement for theirTxn (a house expense they paid)
+// Score how likely myTxn is the reimbursement for a shared-expense row targeting `target`
+// ({ amount, date, category }). Reused both to build the tray and to highlight drop targets.
+function _scoreMatch(myTxn, target) {
   let score = 0;
   const desc = ((myTxn.description || '') + ' ' + (myTxn.notes || '')).toLowerCase();
 
-  // ── Amount: my payment should be ~half of their expense ──
-  const target = Math.abs(theirTxn.amount) / 2;
-  const mine   = Math.abs(myTxn.amount);
-  const pct    = Math.abs(mine - target) / (target || 1);
+  // ── Amount: my payment should be close to what's actually owed ──
+  const want = Math.abs(target.amount);
+  const mine = Math.abs(myTxn.amount);
+  const pct  = Math.abs(mine - want) / (want || 1);
   if (pct < 0.01)       score += 55;
   else if (pct < 0.05)  score += 40;
   else if (pct < 0.15)  score += 20;
@@ -4269,7 +4162,7 @@ function _scoreMatch(myTxn, theirTxn) {
   else                  score -= 20;
 
   // ── Category keyword in my description ──
-  const catWords = (theirTxn.category || '').toLowerCase().replace(/[^a-z\s]/g,'').split(/\s+/).filter(w => w.length > 2);
+  const catWords = (target.category || '').toLowerCase().replace(/[^a-z\s]/g,'').split(/\s+/).filter(w => w.length > 2);
   catWords.forEach(w => { if (desc.includes(w)) score += 18; });
 
   // ── Common reimbursement words ──
@@ -4280,7 +4173,7 @@ function _scoreMatch(myTxn, theirTxn) {
   // ── Date proximity ──
   try {
     const pd = d => { const m = (d||'').match(/(\d{2})\/(\d{2})(?:\/(\d{4}))?/); return m ? new Date(m[3]||new Date().getFullYear(), +m[2]-1, +m[1]) : null; };
-    const d1 = pd(myTxn.date), d2 = pd(theirTxn.date);
+    const d1 = pd(myTxn.date), d2 = pd(target.date);
     if (d1 && d2) {
       const days = Math.abs(d1-d2)/86400000;
       if      (days <= 2)  score += 20;
@@ -4296,189 +4189,130 @@ function _scoreMatch(myTxn, theirTxn) {
   return Math.max(0, score);
 }
 
-function _confBadge(score) {
-  if (score >= 55) return { label: 'Strong match',   cls: 'recon-badge-high' };
-  if (score >= 30) return { label: 'Possible match', cls: 'recon-badge-med'  };
-  return               { label: 'Weak match',     cls: 'recon-badge-low'  };
-}
+// Candidate "payments" for the tray: the current user's own transactions that look like a
+// plausible reimbursement for at least one of their own currently-outstanding rows.
+function computePaymentCandidates(rows) {
+  const uid = getUserId();
+  const myData = uid === 'tony' ? _iouDataCache.tony : _iouDataCache.peter;
+  const payments = loadIOUPayments();
 
-async function runReconciliation() {
-  const card = document.getElementById('iou-recon-card');
-  const body = document.getElementById('iou-recon-body');
-  if (!card || !body) return;
+  const usedTxnKeys = new Set();
+  Object.values(payments).forEach(p => { if (p?.settledBy?.txnKey) usedTxnKeys.add(p.settledBy.txnKey); });
 
-  const { peter, tony } = await loadAllUsersData();
-  const uid         = getUserId();
-  const myData      = uid === 'tony' ? tony  : peter;
-  const theirData   = uid === 'tony' ? peter : tony;
-  const theirName   = uid === 'tony' ? 'Peter' : 'Tony';
-  const houseCats   = getHouseCatsSync();
-  const reconState  = _loadReconState();
-
-  // Collect their house expense transactions (they paid in full)
-  const theirHouseTxns = [];
-  Object.entries(theirData).forEach(([mk, md]) => {
-    (md.transactions || []).forEach(t => {
-      if (t.sheet === 'House' && houseCats.includes(t.category) && Math.abs(t.amount) > 5)
-        theirHouseTxns.push({ ...t, _mk: mk, _ml: md.label });
-    });
-  });
-
-  // Collect my transactions — assign stable keys
   const myTxns = [];
   Object.entries(myData).forEach(([mk, md]) => {
     (md.transactions || []).forEach((t, i) => {
-      myTxns.push({ ...t, _mk: mk, _ml: md.label, _key: `${mk}|${i}|${t.date}|${t.amount}` });
+      const txnKey = `${mk}|${i}|${t.date}|${t.amount}`;
+      if (!usedTxnKeys.has(txnKey)) myTxns.push({ ...t, _mk: mk, _ml: md.label, txnKey });
     });
   });
 
-  // For each of their house txns, find my best candidates
-  const items = theirHouseTxns.map(ht => {
-    const rid = `${ht._mk}|${ht.date}|${ht.description}|${ht.amount}`;
-    const cands = myTxns
-      .map(t => ({ t, s: _scoreMatch(t, ht) }))
-      .filter(x => x.s > 18)
-      .sort((a, b) => b.s - a.s)
-      .slice(0, 10);
-    return { rid, ht, cands };
-  }).filter(item => {
-    const st = reconState[item.rid];
-    return item.cands.length > 0 || (st && st.confirmed);
+  const outstanding = rows.filter(r => r.owedBy === uid && !payments[r.key] && r.owedAmount > 0.005);
+  if (!outstanding.length) return [];
+
+  return myTxns
+    .map(t => {
+      const bestScore = outstanding.reduce((best, r) =>
+        Math.max(best, _scoreMatch(t, { amount: r.owedAmount, date: r.basisDate, category: r.cat })), 0);
+      return { t, bestScore };
+    })
+    .filter(c => c.bestScore > 18)
+    .sort((a, b) => b.bestScore - a.bestScore || (b.t.date||'').localeCompare(a.t.date||''))
+    .map(c => c.t);
+}
+
+function renderIOUTray(rows) {
+  _iouTrayCandidates = computePaymentCandidates(rows);
+  const tray  = document.getElementById('iou-tray');
+  const body  = document.getElementById('iou-tray-body');
+  const title = document.getElementById('iou-tray-title');
+
+  if (!_iouTrayCandidates.length) { tray.style.display = 'none'; return; }
+
+  tray.style.display = 'block';
+  tray.classList.toggle('collapsed', _iouTrayCollapsed);
+  title.textContent = `Your payments (${_iouTrayCandidates.length})`;
+  body.innerHTML = _iouTrayCandidates.map((t, i) => `
+    <div class="iou-chip" data-idx="${i}">
+      <div class="iou-chip-amount">$${Math.abs(t.amount).toFixed(2)}</div>
+      <div class="iou-chip-desc">${t.description||'—'} · ${t.date||''}</div>
+    </div>`).join('');
+
+  attachIOUDragHandlers();
+}
+
+function toggleIOUTray() {
+  _iouTrayCollapsed = !_iouTrayCollapsed;
+  document.getElementById('iou-tray').classList.toggle('collapsed', _iouTrayCollapsed);
+}
+
+// ── Drag-and-drop via Pointer Events so it works with both mouse and touch ──
+let _iouDrag = null;
+
+function attachIOUDragHandlers() {
+  document.querySelectorAll('.iou-chip').forEach(chip => {
+    chip.onpointerdown = (e) => startIOUDrag(e, chip);
   });
+}
 
-  if (!items.length) {
-    card.style.display = 'none';
-    return;
+function startIOUDrag(e, chip) {
+  e.preventDefault();
+  const txn = _iouTrayCandidates[+chip.dataset.idx];
+  if (!txn) return;
+
+  const ghost = document.createElement('div');
+  ghost.className = 'iou-chip-ghost';
+  ghost.innerHTML = chip.innerHTML;
+  document.body.appendChild(ghost);
+  positionIOUGhost(ghost, e.clientX, e.clientY);
+
+  chip.classList.add('dragging');
+  chip.setPointerCapture(e.pointerId);
+
+  _iouDrag = { chip, ghost, txn, lastZone: null };
+  chip.onpointermove = onIOUDragMove;
+  chip.onpointerup = onIOUDragEnd;
+  chip.onpointercancel = onIOUDragEnd;
+}
+
+function positionIOUGhost(ghost, x, y) {
+  ghost.style.left = (x + 14) + 'px';
+  ghost.style.top = (y + 14) + 'px';
+}
+
+function onIOUDragMove(e) {
+  if (!_iouDrag) return;
+  positionIOUGhost(_iouDrag.ghost, e.clientX, e.clientY);
+
+  // Ghost has pointer-events:none so elementFromPoint sees through it to the row underneath.
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const zone = under?.closest('.iou-dropzone') || null;
+
+  if (zone !== _iouDrag.lastZone) {
+    if (_iouDrag.lastZone) _iouDrag.lastZone.classList.remove('drag-over', 'drag-suggested');
+    if (zone) {
+      zone.classList.add('drag-over');
+      const target = { amount: +zone.dataset.owedAmount, date: zone.dataset.basisDate, category: zone.dataset.cat };
+      if (_scoreMatch(_iouDrag.txn, target) >= 40) zone.classList.add('drag-suggested');
+    }
+    _iouDrag.lastZone = zone;
   }
-  card.style.display = 'block';
+}
 
-  const pending   = items.filter(i => !reconState[i.rid]?.confirmed && !reconState[i.rid]?.dismissed);
-  const confirmed = items.filter(i =>  reconState[i.rid]?.confirmed);
+function onIOUDragEnd() {
+  if (!_iouDrag) return;
+  const { chip, ghost, txn, lastZone } = _iouDrag;
+  chip.classList.remove('dragging');
+  chip.onpointermove = null;
+  chip.onpointerup = null;
+  chip.onpointercancel = null;
+  ghost.remove();
 
-  let html = '';
-
-  if (pending.length) {
-    html += `<p style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:.85rem">
-      ${pending.length} unconfirmed — review each match below and confirm or pick a different transaction
-    </p>`;
-    pending.forEach(item => { html += _buildReconCard(item, myTxns, reconState, theirName, false); });
+  if (lastZone) {
+    lastZone.classList.remove('drag-over', 'drag-suggested');
+    settleIOURow(lastZone.dataset.rowKey, txn);
   }
-  if (confirmed.length) {
-    html += `<details style="margin-top:${pending.length?'1rem':'0'}">
-      <summary style="font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);cursor:pointer;margin-bottom:.5rem;list-style:none">
-        ▸ ${confirmed.length} confirmed match${confirmed.length>1?'es':''}
-      </summary>`;
-    confirmed.forEach(item => { html += _buildReconCard(item, myTxns, reconState, theirName, true); });
-    html += '</details>';
-  }
-
-  body.innerHTML = html;
-}
-
-function _buildReconCard(item, myTxns, reconState, theirName, isConfirmed) {
-  const { rid, ht, cands } = item;
-  const st       = reconState[rid] || {};
-  const selKey   = st.selectedKey || (cands[0]?.t._key);
-  const matched  = myTxns.find(t => t._key === selKey) || cands[0]?.t;
-  const topScore = cands.find(c => c.t._key === selKey)?.s || cands[0]?.s || 0;
-  const badge    = isConfirmed ? { label: '✓ Confirmed', cls: 'recon-badge-high' } : _confBadge(topScore);
-  const half     = (Math.abs(ht.amount) / 2).toFixed(2);
-
-  // Build alternate-transaction options
-  const opts = cands.map(c => {
-    const sel = c.t._key === selKey ? ' selected' : '';
-    const lbl = `${c.t.date} · ${(c.t.description||'').slice(0,32)} · $${Math.abs(c.t.amount).toFixed(2)}`;
-    return `<option value="${c.t._key.replace(/"/g,'&quot;')}"${sel}>${lbl} (score: ${c.s})</option>`;
-  }).join('');
-
-  // Encode rid for use in data attributes (no inline JS strings with arbitrary content)
-  const ridEnc = encodeURIComponent(rid);
-  const keyEnc = encodeURIComponent(selKey || '');
-
-  return `<div class="recon-card">
-    <div class="recon-layout">
-      <!-- LEFT: their house expense -->
-      <div class="recon-col recon-col-left">
-        <div style="font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--blue);margin-bottom:5px">${theirName} paid</div>
-        <div style="font-weight:600;font-size:.9rem;margin-bottom:3px">${ht.description}</div>
-        <div style="font-family:'DM Mono',monospace;font-size:.8rem;color:var(--blue)">$${Math.abs(ht.amount).toFixed(2)}</div>
-        <div style="font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text3);margin-top:3px">${ht.category} · ${ht.date} ${ht._ml}</div>
-      </div>
-      <!-- MIDDLE: arrow + half amount -->
-      <div class="recon-col-mid">
-        <span style="font-size:1.2rem;color:var(--text3)">⇄</span>
-        <span style="font-family:'DM Mono',monospace;font-size:.6rem;color:var(--text3);text-align:center">your half</span>
-        <span style="font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:600;color:var(--accent)">$${half}</span>
-      </div>
-      <!-- RIGHT: my matched transaction -->
-      <div class="recon-col recon-col-right${isConfirmed?' confirmed':''}">
-        <div style="font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:5px">Your payment</div>
-        ${matched ? `
-          <div style="font-weight:600;font-size:.9rem;margin-bottom:3px">${matched.description||'—'}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:.8rem;color:var(--red)">$${Math.abs(matched.amount).toFixed(2)}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text3);margin-top:3px">${matched.date} ${matched._ml}</div>
-        ` : '<div style="color:var(--text3);font-size:.82rem;margin-top:8px">No transaction found</div>'}
-        ${cands.length > 1 && !isConfirmed ? `
-          <div style="margin-top:8px">
-            <div style="font-family:'DM Mono',monospace;font-size:.6rem;color:var(--text3);margin-bottom:3px">Choose a different transaction:</div>
-            <select data-rid="${ridEnc}" onchange="reconPickAlt(this)"
-              style="width:100%;font-size:.72rem;padding:4px 6px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2)">
-              ${opts}
-            </select>
-          </div>
-        ` : ''}
-      </div>
-    </div>
-    <!-- FOOTER: confidence + action buttons -->
-    <div class="recon-footer${isConfirmed?' confirmed':''}">
-      <span class="recon-badge ${badge.cls}">${badge.label}</span>
-      <div style="display:flex;gap:8px;align-items:center">
-        ${isConfirmed
-          ? `<button class="btn btn-secondary" style="padding:.3rem .7rem;font-size:.62rem"
-               data-rid="${ridEnc}" onclick="reconUndo(this)">Undo</button>`
-          : `<button class="btn btn-secondary" style="padding:.3rem .7rem;font-size:.62rem"
-               data-rid="${ridEnc}" onclick="reconDismiss(this)">Dismiss</button>
-             <button class="btn btn-primary" style="padding:.3rem .7rem;font-size:.62rem"
-               data-rid="${ridEnc}" data-key="${keyEnc}" onclick="reconConfirm(this)">✓ Confirm match</button>`
-        }
-      </div>
-    </div>
-  </div>`;
-}
-
-function reconPickAlt(sel) {
-  const rid = decodeURIComponent(sel.dataset.rid);
-  const st  = _loadReconState();
-  if (!st[rid]) st[rid] = {};
-  st[rid].selectedKey = sel.value;
-  _saveReconState(st);
-  runReconciliation(); // re-render to update right column
-}
-
-function reconConfirm(btn) {
-  const rid = decodeURIComponent(btn.dataset.rid);
-  const key = decodeURIComponent(btn.dataset.key);
-  const st  = _loadReconState();
-  st[rid]   = { confirmed: true, selectedKey: key, at: new Date().toISOString() };
-  _saveReconState(st);
-  showCorrectionToast('Match confirmed ✓');
-  runReconciliation();
-}
-
-function reconDismiss(btn) {
-  const rid = decodeURIComponent(btn.dataset.rid);
-  const st  = _loadReconState();
-  st[rid]   = { dismissed: true };
-  _saveReconState(st);
-  runReconciliation();
-}
-
-function reconUndo(btn) {
-  const rid = decodeURIComponent(btn.dataset.rid);
-  const st  = _loadReconState();
-  delete st[rid];
-  _saveReconState(st);
-  runReconciliation();
+  _iouDrag = null;
 }
 
 // ═══════════════════════════
@@ -4494,12 +4328,12 @@ Object.assign(window, {
   openDetailSplitModal, unsplitDetailTransaction, deleteDetailRow,
   selectName, confirmOtherName, forgetUser,
   doLogin, doSignOut, togglePasswordVisibility,
-  renderDashboard, refreshDashboard, renderHistory, refreshHistory, renderIOU, refreshIOU, renderIOUMonth, markIOUPaid,
+  renderDashboard, refreshDashboard, renderHistory, refreshHistory, renderIOU, refreshIOU,
+  undoIOURow, toggleIOUTray,
   addCategory, removeCategory, removeCorrection, clearCorrections,
   openSplitModal, closeSplitModal, updateSplitA, updateSplitB, confirmSplit, unsplitTransaction,
   togglePreview,
   moveCategoryToSheet, startCatRename: (a,b,c) => startCatRename(a,b,c), doRenameCategory,
-  runReconciliation, reconPickAlt, reconConfirm, reconDismiss, reconUndo
 });
 
 // ═══════════════════════════
