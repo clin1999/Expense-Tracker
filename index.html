@@ -3740,15 +3740,19 @@ function saveIOUPayments(p) { localStorage.setItem(IOU_STORAGE_KEY, JSON.stringi
 function iouKey(cat, monthKey) { return `${cat}__${monthKey}`; }
 
 // Which categories are treated as shared house expenses on the IOU tab, and how each is split.
-// 'half'/'full' = one-directional (Peter pays first, Tony reimburses his share).
-// netMonthly = bidirectional (either person may pay; owed = net difference between the two).
+// netMonthly (default) = bidirectional 50/50 — either person may pay any part of it in a given
+// month, and the row is just the net difference between what each paid. This covers utilities
+// too: someone occasionally paying a bill directly (not just via the usual payer) must still
+// show up, or their payment silently disappears instead of flipping who owes whom.
+// split:'full', one-directional = structurally can only be paid by one person (Insurance is
+// charged to Peter's personal credit card, so Tony can never be the payer here).
 const SHARED_EXPENSE_CATEGORIES = [
-  { cat: 'Electricity',   label: 'Electricity',   split: 'half' },
-  { cat: 'Water',         label: 'Water',         split: 'half' },
-  { cat: 'Wifi',          label: 'Wifi',          split: 'half' },
-  { cat: 'Council Rates', label: 'Council Rates', split: 'half' },
-  { cat: 'Groceries',     label: 'Groceries',     split: 'half', netMonthly: true },
-  { cat: 'Insurance',     label: "Tony's Car Insurance", split: 'full' },
+  { cat: 'Electricity',   label: 'Electricity',   netMonthly: true, sub: 'Split 50/50 — either person may pay, settled monthly' },
+  { cat: 'Water',         label: 'Water',         netMonthly: true, sub: 'Split 50/50 — either person may pay, settled monthly' },
+  { cat: 'Wifi',          label: 'Wifi',          netMonthly: true, sub: 'Split 50/50 — either person may pay, settled monthly' },
+  { cat: 'Council Rates', label: 'Council Rates', netMonthly: true, sub: 'Split 50/50 — either person may pay, settled monthly' },
+  { cat: 'Groceries',     label: 'Groceries',     netMonthly: true, sub: 'Weekly spend — split 50/50, settled monthly' },
+  { cat: 'Insurance',     label: "Tony's Car Insurance", split: 'full', sub: 'Charged to Peter — Tony reimburses in full' },
 ];
 
 let _iouDataCache = { peter: {}, tony: {} };
@@ -3779,8 +3783,8 @@ function computeIOURows(peter, tony) {
         payerLabel = `Peter paid $${pPaid.toFixed(2)} · Tony paid $${tPaid.toFixed(2)}`;
         basisTxns = [...(pData?.transactions||[]), ...(tData?.transactions||[])].filter(t => t.category === cfg.cat);
       } else {
-        const fraction = cfg.split === 'full' ? 1 : 0.5;
-        owedAmount = Math.max(0, pPaid * fraction - tPaid);
+        // One-directional (currently only Insurance): Peter is the only possible payer.
+        owedAmount = Math.max(0, pPaid - tPaid);
         owedBy = owedAmount > 0.005 ? 'tony' : null;
         payerLabel = `Peter paid $${pPaid.toFixed(2)}`;
         basisTxns = (pData?.transactions||[]).filter(t => t.category === cfg.cat);
@@ -3854,15 +3858,10 @@ function renderIOUBlocks(rows) {
 
     const recent = catRows.slice(0, 3);
     const older = catRows.slice(3);
-    const sub = cfg.netMonthly
-      ? 'Weekly spend — split 50/50, settled monthly'
-      : cfg.split === 'full'
-        ? 'Charged to Peter — Tony reimburses in full'
-        : 'Peter pays first — reimbursed half';
 
     return `<div class="iou-block">
       <div class="iou-block-title">${cfg.label}</div>
-      <div class="iou-block-sub">${sub}</div>
+      <div class="iou-block-sub">${cfg.sub}</div>
       ${recent.map(r => buildIOURowHtml(r, payments)).join('')}
       ${older.length ? `<details>
         <summary style="cursor:pointer;font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);padding:6px 2px;list-style:none">▸ ${older.length} earlier month${older.length>1?'s':''}</summary>
