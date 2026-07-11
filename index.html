@@ -1277,8 +1277,12 @@ const auth = getAuth(app);
 // User email → namespace mapping
 const EMAIL_USER_MAP = {
   'changchien1999@gmail.com': 'peter',
-  'thsiang@gmail.com': 'tony'
+  'thsiang785@gmail.com': 'tony'
 };
+
+// Tony originally signed in before this map had his real email, so his data landed under
+// this legacy per-email namespace instead of 'tony'. One-time migration copies it across.
+const LEGACY_TONY_UID = 'thsiang785';
 
 // ═══════════════════════════
 // DATA LAYER — Firestore (user-namespaced)
@@ -1343,6 +1347,32 @@ async function loadAllUsersData() {
     loadAllData('tony')
   ]);
   return { peter: peterData, tony: tonyData };
+}
+
+// One-time: copy Tony's months + categories from the legacy 'thsiang785' namespace (his data
+// landed there before EMAIL_USER_MAP had his real email) over to 'tony'. Safe to run on every
+// login — it copies rather than deletes the legacy docs, and no-ops once 'tony' has months.
+async function migrateLegacyTonyData() {
+  try {
+    const newMonthsSnap = await getDocs(userMonthsRef('tony'));
+    if (!newMonthsSnap.empty) return; // already migrated
+
+    const oldMonthsSnap = await getDocs(userMonthsRef(LEGACY_TONY_UID));
+    if (oldMonthsSnap.empty) return; // nothing to migrate
+
+    for (const d of oldMonthsSnap.docs) {
+      await setDoc(userMonthDocRef(d.id, 'tony'), d.data());
+    }
+
+    const oldCatsSnap = await getDoc(userCategoriesRef(LEGACY_TONY_UID));
+    if (oldCatsSnap.exists()) {
+      await setDoc(userCategoriesRef('tony'), oldCatsSnap.data(), { merge: true });
+    }
+
+    console.log(`Migrated ${oldMonthsSnap.size} month(s) from legacy account '${LEGACY_TONY_UID}' to 'tony'.`);
+  } catch (e) {
+    console.error('Legacy Tony data migration error:', e);
+  }
 }
 
 async function loadCorrections() {
@@ -4349,6 +4379,7 @@ onAuthStateChanged(auth, async (user) => {
     // Reset button state
     const btn = document.getElementById('login-btn');
     if (btn) { btn.disabled = false; btn.textContent = 'Sign in'; }
+    await migrateLegacyTonyData();
     invalidateCategoriesCache();
     await loadCategories();
     updatePersonalCategoryLabels();
