@@ -553,6 +553,11 @@ select:focus{outline:none;border-color:var(--accent)}
 .iou-block { margin-bottom: 1.25rem; }
 .iou-block-title { font-family:'Playfair Display',serif; font-size:1rem; font-weight:600; margin-bottom:.25rem; }
 .iou-block-sub { font-size:.8rem; color:var(--text2); margin-bottom:1rem; }
+.iou-search-row { margin-bottom: 1rem; }
+.iou-search-input {
+  width: 100%; padding: .55rem .9rem; border: 1px solid var(--border2); border-radius: 8px;
+  font-family: 'DM Sans', sans-serif; font-size: .82rem; color: var(--text); background: var(--surface2);
+}
 .iou-block-row {
   display: grid;
   grid-template-columns: 90px 1fr 130px 32px;
@@ -561,7 +566,8 @@ select:focus{outline:none;border-color:var(--accent)}
   border: 1px solid var(--border);
   border-radius: 8px;
   margin-bottom: 6px;
-  align-items: center;
+  align-items: start;
+  padding-top: 12px;
   font-size: .82rem;
   transition: border-color .15s, background .15s, box-shadow .15s;
 }
@@ -593,26 +599,34 @@ select:focus{outline:none;border-color:var(--accent)}
   font-family: 'DM Mono', monospace; font-size: .68rem;
   text-transform: uppercase; letter-spacing: .06em; color: var(--text2);
 }
+.iou-tray-search-row { padding: 0 1.25rem 10px; }
 .iou-tray-body {
   display: flex; gap: 10px; overflow-x: auto;
   padding: 0 1.25rem 14px;
 }
+.iou-tray.collapsed .iou-tray-search-row { display: none; }
 .iou-tray.collapsed .iou-tray-body { display: none; }
 .iou-tray.collapsed #iou-tray-chevron { transform: rotate(-90deg); }
 .iou-chip {
   flex: 0 0 auto; touch-action: none; cursor: grab;
   border: 1px solid var(--border2); border-radius: 8px;
   padding: 8px 12px; background: var(--surface2);
-  font-size: .75rem; line-height: 1.3; min-width: 140px;
+  font-size: .75rem; line-height: 1.3; min-width: 150px;
 }
 .iou-chip.dragging { opacity: .35; }
+.iou-chip-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .iou-chip-amount { font-family:'DM Mono',monospace; font-weight:500; color: var(--red); }
+.iou-chip-person {
+  font-family:'DM Mono',monospace; font-size:.6rem; text-transform:uppercase; letter-spacing:.04em;
+  color: var(--text3); border: 1px solid var(--border2); border-radius: 10px; padding: 1px 6px;
+}
 .iou-chip-desc { color: var(--text2); font-size:.7rem; margin-top:2px; }
+.iou-tray-empty { padding: 10px 0; font-size: .78rem; color: var(--text3); }
 .iou-chip-ghost {
   position: fixed; z-index: 900; pointer-events: none;
   border: 1px solid var(--accent); border-radius: 8px;
   padding: 8px 12px; background: var(--surface); box-shadow: 0 6px 20px rgba(0,0,0,.18);
-  font-size: .75rem; line-height: 1.3; min-width: 140px;
+  font-size: .75rem; line-height: 1.3; min-width: 150px;
 }
 
 </style>
@@ -1113,6 +1127,12 @@ select:focus{outline:none;border-color:var(--accent)}
     <!-- All-time balance banner -->
     <div id="iou-banner" style="border-radius:12px;padding:1.5rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem"></div>
 
+    <!-- Search across all expense blocks -->
+    <div class="iou-search-row">
+      <input type="text" id="iou-block-search" class="iou-search-input"
+        placeholder="Search expenses — category, month, description…" oninput="filterIOUBlocks(this.value)">
+    </div>
+
     <!-- One block per shared expense category, all months inside -->
     <div id="iou-blocks"></div>
   </div>
@@ -1120,11 +1140,15 @@ select:focus{outline:none;border-color:var(--accent)}
   <!-- Draggable payments tray -->
   <div id="iou-tray" class="iou-tray" style="display:none">
     <div class="iou-tray-header" onclick="toggleIOUTray()">
-      <span id="iou-tray-title">Your payments</span>
+      <span id="iou-tray-title">Payments</span>
       <span style="display:flex;align-items:center;gap:8px">
-        <span id="iou-tray-hint" class="hide-mobile" style="font-size:.68rem;color:var(--text2);font-weight:400">drag one onto an expense below to settle it</span>
+        <span id="iou-tray-hint" class="hide-mobile" style="font-size:.68rem;color:var(--text2);font-weight:400">drag one onto an expense above to link it</span>
         <span id="iou-tray-chevron">▾</span>
       </span>
+    </div>
+    <div class="iou-tray-search-row">
+      <input type="text" id="iou-tray-search" class="iou-search-input"
+        placeholder="Search payments — Peter, Tony, description, amount…" oninput="filterIOUTray(this.value)">
     </div>
     <div class="iou-tray-body" id="iou-tray-body"></div>
   </div>
@@ -3786,14 +3810,20 @@ const SHARED_EXPENSE_CATEGORIES = [
 ];
 
 let _iouDataCache = { peter: {}, tony: {} };
+let _iouRowsCache = [];
 let _iouTrayCandidates = [];
 let _iouTrayCollapsed = false;
+let _iouTraySearchQuery = '';
+let _iouBlockSearchQuery = '';
 
 function sumCatFrom(monthData, cat) {
   return (monthData?.transactions || []).filter(t => t.category === cat).reduce((s,t) => s + Math.abs(t.amount), 0);
 }
 
 // One row per (category, month) that has any activity — the unit the drag-to-settle UI acts on.
+// fullAmount = the larger of the two people's contributions, i.e. "the bill" — used both to
+// optionally link the original expense as evidence, and to recognise when a reimbursement was
+// clearly meant to cover the whole thing rather than just the usual half share.
 function computeIOURows(peter, tony) {
   const allKeys = [...new Set([...sortedKeys(peter), ...sortedKeys(tony)])].sort();
   const rows = [];
@@ -3805,26 +3835,29 @@ function computeIOURows(peter, tony) {
       const tPaid = sumCatFrom(tData, cfg.cat);
       if (pPaid === 0 && tPaid === 0) return;
 
-      let owedAmount = 0, owedBy = null, payerLabel = '', basisTxns = [];
+      let owedAmount = 0, owedBy = null, fullAmount = 0, payerLabel = '', basisTxns = [];
       if (cfg.netMonthly) {
         const diff = pPaid - tPaid; // positive = tony owes peter, negative = peter owes tony
         owedAmount = Math.abs(diff) / 2;
         owedBy = diff > 0.005 ? 'tony' : diff < -0.005 ? 'peter' : null;
+        fullAmount = Math.max(pPaid, tPaid);
         payerLabel = `Peter paid $${pPaid.toFixed(2)} · Tony paid $${tPaid.toFixed(2)}`;
         basisTxns = [...(pData?.transactions||[]), ...(tData?.transactions||[])].filter(t => t.category === cfg.cat);
       } else {
         // One-directional (currently only Insurance): Peter is the only possible payer.
         owedAmount = Math.max(0, pPaid - tPaid);
         owedBy = owedAmount > 0.005 ? 'tony' : null;
+        fullAmount = pPaid;
         payerLabel = `Peter paid $${pPaid.toFixed(2)}`;
         basisTxns = (pData?.transactions||[]).filter(t => t.category === cfg.cat);
       }
       basisTxns.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+      const payerUid = owedBy === 'tony' ? 'peter' : owedBy === 'peter' ? 'tony' : null;
 
       rows.push({
         key: iouKey(cfg.cat, mk), cat: cfg.cat, label: cfg.label,
         monthKey: mk, monthLbl: monthLabel(mk),
-        owedAmount, owedBy, payerLabel,
+        owedAmount, owedBy, payerUid, fullAmount, payerLabel,
         basisDate: basisTxns[basisTxns.length-1]?.date || '',
         basisDesc: basisTxns.map(t => t.description).filter(Boolean).join(', '),
       });
@@ -3832,6 +3865,28 @@ function computeIOURows(peter, tony) {
   });
 
   return rows;
+}
+
+// Old shape was a single boolean-ish { paidAt, type, settledBy }. New shape supports an optional
+// linked bill transaction (evidence only) plus any number of accumulated reimbursement links.
+function normalizeIOUEntry(raw) {
+  if (!raw) return { billLink: null, reimbursements: [] };
+  if (raw.reimbursements) return raw;
+  if (raw.settledBy) return { billLink: null, reimbursements: [{ ...raw.settledBy, at: raw.paidAt }] };
+  return { billLink: null, reimbursements: [] };
+}
+
+// Recognises whether the linked reimbursements were meant to cover just the usual half share or
+// the full expense (some months are genuinely reimbursed in full rather than split) — whichever
+// target the accumulated total is actually tracking toward.
+function resolveIOUSettlement(row, entry) {
+  const reimbursedTotal = (entry.reimbursements || []).reduce((s, r) => s + Math.abs(r.amount || 0), 0);
+  const half = row.owedAmount;
+  const full = row.fullAmount;
+  const looksFull = full > half + 0.01 && reimbursedTotal > half + Math.max(1, half * 0.1);
+  const required = looksFull ? full : half;
+  const remaining = Math.max(0, required - reimbursedTotal);
+  return { reimbursedTotal, required, remaining, isSettled: remaining <= 0.01 };
 }
 
 async function renderIOU() {
@@ -3848,6 +3903,7 @@ async function renderIOU() {
   document.getElementById('iou-content').style.display = 'block';
 
   const rows = computeIOURows(peter, tony);
+  _iouRowsCache = rows;
   renderIOUBanner(rows);
   renderIOUBlocks(rows);
   renderIOUTray(rows);
@@ -3857,9 +3913,11 @@ function renderIOUBanner(rows) {
   const payments = loadIOUPayments();
   let tonyOwesPeter = 0, peterOwesTony = 0;
   rows.forEach(r => {
-    if (payments[r.key] || r.owedAmount <= 0.005) return;
-    if (r.owedBy === 'tony') tonyOwesPeter += r.owedAmount;
-    else if (r.owedBy === 'peter') peterOwesTony += r.owedAmount;
+    if (r.owedAmount <= 0.005) return;
+    const { remaining, isSettled } = resolveIOUSettlement(r, normalizeIOUEntry(payments[r.key]));
+    if (isSettled) return;
+    if (r.owedBy === 'tony') tonyOwesPeter += remaining;
+    else if (r.owedBy === 'peter') peterOwesTony += remaining;
   });
   const net = tonyOwesPeter - peterOwesTony;
   const banner = document.getElementById('iou-banner');
@@ -3878,14 +3936,35 @@ function renderIOUBanner(rows) {
   }
 }
 
+function filterIOUBlocks(query) {
+  _iouBlockSearchQuery = query || '';
+  renderIOUBlocks(_iouRowsCache);
+}
+
 function renderIOUBlocks(rows) {
   const payments = loadIOUPayments();
   const container = document.getElementById('iou-blocks');
+  const q = _iouBlockSearchQuery.trim().toLowerCase();
 
   const blocksHtml = SHARED_EXPENSE_CATEGORIES.map(cfg => {
-    const catRows = rows.filter(r => r.cat === cfg.cat).sort((a,b) => b.monthKey.localeCompare(a.monthKey));
-    if (!catRows.length) return '';
+    let catRows = rows.filter(r => r.cat === cfg.cat).sort((a,b) => b.monthKey.localeCompare(a.monthKey));
 
+    if (q) {
+      catRows = catRows.filter(r => {
+        const entry = normalizeIOUEntry(payments[r.key]);
+        const hay = [cfg.label, r.monthLbl, r.payerLabel, r.basisDesc, entry.billLink?.description,
+          ...entry.reimbursements.map(x => x.description)].filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(q);
+      });
+      if (!catRows.length) return '';
+      return `<div class="iou-block">
+        <div class="iou-block-title">${cfg.label}</div>
+        <div class="iou-block-sub">${cfg.sub}</div>
+        ${catRows.map(r => buildIOURowHtml(r, payments)).join('')}
+      </div>`;
+    }
+
+    if (!catRows.length) return '';
     const recent = catRows.slice(0, 3);
     const older = catRows.slice(3);
 
@@ -3900,36 +3979,67 @@ function renderIOUBlocks(rows) {
     </div>`;
   }).filter(Boolean).join('');
 
-  container.innerHTML = blocksHtml || `<div class="card"><div class="empty"><div class="empty-icon">🤝</div><p>No shared expenses recorded yet.</p></div></div>`;
+  container.innerHTML = blocksHtml || (q
+    ? `<div class="card"><div class="empty"><div class="empty-icon">🔍</div><p>No expenses match "${_iouBlockSearchQuery}".</p></div></div>`
+    : `<div class="card"><div class="empty"><div class="empty-icon">🤝</div><p>No shared expenses recorded yet.</p></div></div>`);
+}
+
+function personLabel(uid) {
+  return uid === 'tony' ? 'Tony' : uid === 'peter' ? 'Peter' : (uid || 'Someone');
 }
 
 function buildIOURowHtml(r, payments) {
-  const paid = payments[r.key];
   const isEven = r.owedAmount <= 0.005;
-  const isSettled = !!paid || isEven;
-  const uid = getUserId();
-  const isMyDrop = r.owedBy === uid && !isSettled;
+  const entry = normalizeIOUEntry(payments[r.key]);
+  const hasLink = !!(entry.billLink || entry.reimbursements.length);
+  const settlement = isEven ? null : resolveIOUSettlement(r, entry);
+  const isSettled = isEven || (settlement && settlement.isSettled);
+  const isDropzone = !isEven && !isSettled;
   const oweeLabel = r.owedBy === 'tony' ? 'Tony owes Peter' : r.owedBy === 'peter' ? 'Peter owes Tony' : '';
+
+  const headline = isEven
+    ? 'Even ✓'
+    : isSettled
+      ? `$${settlement.required.toFixed(2)} — ${oweeLabel}`
+      : `$${settlement.remaining.toFixed(2)} of $${settlement.required.toFixed(2)} — ${oweeLabel}`;
 
   const statusHtml = isEven
     ? `<span class="paid-btn paid-done">✓ Even</span>`
-    : paid
+    : isSettled
       ? `<span class="paid-btn paid-done">✓ Settled</span>`
-      : `<span class="paid-btn paid-pending">${isMyDrop ? 'Drop payment here' : 'Outstanding'}</span>`;
+      : `<span class="paid-btn paid-pending">${entry.reimbursements.length ? `$${settlement.remaining.toFixed(2)} left` : isDropzone ? 'Drop payment here' : 'Outstanding'}</span>`;
 
-  const zoneAttrs = isMyDrop
-    ? ` data-owed-amount="${r.owedAmount}" data-basis-date="${r.basisDate}" data-cat="${r.cat}"`
-    : '';
+  const fullNote = (!isEven && settlement && settlement.required !== r.owedAmount)
+    ? `<div class="iou-evidence">Reimbursed in full ($${settlement.required.toFixed(2)}), not split</div>` : '';
 
-  return `<div class="iou-block-row ${isSettled?'settled':''} ${isMyDrop?'iou-dropzone':''}" data-row-key="${r.key}"${zoneAttrs}>
+  // "This person paid this amount on the day" — persistent prompt shown right under the row
+  // for whatever was just linked, so both the original bill and each reimbursement are visible.
+  const billNote = entry.billLink
+    ? `<div class="iou-evidence">💰 ${personLabel(entry.billLink.uid)} paid $${Math.abs(entry.billLink.amount).toFixed(2)} on ${entry.billLink.date||'—'}</div>` : '';
+
+  let reimbRunning = 0;
+  const reimbNotes = entry.reimbursements.map((rb, i) => {
+    reimbRunning += Math.abs(rb.amount || 0);
+    const isLast = i === entry.reimbursements.length - 1;
+    const who = personLabel(rb.uid);
+    const amt = Math.abs(rb.amount).toFixed(2);
+    const when = rb.date || '—';
+    if (!isLast) return `<div class="iou-evidence">${who} paid $${amt} on ${when} (partial)</div>`;
+    const stillOwed = settlement ? Math.max(0, settlement.required - reimbRunning) : 0;
+    return stillOwed <= 0.01
+      ? `<div class="iou-evidence">✅ ${who} paid $${amt} on ${when} — settles it</div>`
+      : `<div class="iou-evidence">${who} paid $${amt} on ${when} — $${stillOwed.toFixed(2)} still owed</div>`;
+  }).join('');
+
+  return `<div class="iou-block-row ${isSettled?'settled':''} ${isDropzone?'iou-dropzone':''}" data-row-key="${r.key}">
     <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text3)">${r.monthLbl}</span>
     <span>
-      <span style="font-weight:500">${isEven ? 'Even ✓' : `$${r.owedAmount.toFixed(2)} — ${oweeLabel}`}</span>
+      <span style="font-weight:500">${headline}</span>
       <div class="iou-evidence">${r.payerLabel}</div>
-      ${paid?.settledBy ? `<div class="iou-evidence">✓ settled by "${paid.settledBy.description||'—'}" (${paid.settledBy.date||''}) $${Math.abs(paid.settledBy.amount||0).toFixed(2)}</div>` : ''}
+      ${fullNote}${billNote}${reimbNotes}
     </span>
     <span class="hide-m">${statusHtml}</span>
-    <span>${paid ? `<button class="iou-undo-btn" title="Undo settlement" onclick="undoIOURow('${r.key}')">↺</button>` : ''}</span>
+    <span>${hasLink ? `<button class="iou-undo-btn" title="Undo linked payments" onclick="undoIOURow('${r.key}')">↺</button>` : ''}</span>
   </div>`;
 }
 
@@ -3937,19 +4047,33 @@ function undoIOURow(key) {
   const payments = loadIOUPayments();
   delete payments[key];
   saveIOUPayments(payments);
-  showCorrectionToast('Settlement undone');
+  showCorrectionToast('Linked payments cleared');
   renderIOU();
 }
 
-function settleIOURow(rowKey, txn) {
+// A dragged transaction from the non-owing side (i.e. whoever paid the bill) is linked as
+// evidence only and doesn't affect the total. A transaction from the owing side accumulates
+// toward settling the row — see resolveIOUSettlement for how much is actually required.
+function linkIOURow(rowKey, txn) {
+  const row = _iouRowsCache.find(r => r.key === rowKey);
+  if (!row) return;
   const payments = loadIOUPayments();
-  payments[rowKey] = {
-    paidAt: new Date().toISOString(),
-    type: 'drag',
-    settledBy: { txnKey: txn.txnKey, date: txn.date, amount: txn.amount, description: txn.description },
-  };
+  const entry = normalizeIOUEntry(payments[rowKey]);
+
+  const who = personLabel(txn._uid);
+  const amt = Math.abs(txn.amount).toFixed(2);
+
+  if (txn._uid && row.owedBy && txn._uid !== row.owedBy) {
+    entry.billLink = { txnKey: txn.txnKey, uid: txn._uid, date: txn.date, amount: txn.amount, description: txn.description };
+    showCorrectionToast(`${who} paid $${amt} on ${txn.date||'—'}`);
+  } else {
+    entry.reimbursements.push({ txnKey: txn.txnKey, uid: txn._uid, date: txn.date, amount: txn.amount, description: txn.description, at: new Date().toISOString() });
+    const { remaining, isSettled } = resolveIOUSettlement(row, entry);
+    showCorrectionToast(isSettled ? `${who} paid $${amt} — settled ✓` : `${who} paid $${amt} — $${remaining.toFixed(2)} still owed`);
+  }
+
+  payments[rowKey] = entry;
   saveIOUPayments(payments);
-  showCorrectionToast('Settled ✓');
   renderIOU();
 }
 
@@ -4218,31 +4342,40 @@ function _scoreMatch(myTxn, target) {
   return Math.max(0, score);
 }
 
-// Candidate "payments" for the tray: the current user's own transactions that look like a
-// plausible reimbursement for at least one of their own currently-outstanding rows.
+// Candidate "payments" for the tray: transactions from EITHER person that look like a plausible
+// link — either the reimbursement (from the owing side) or the original bill (from the paying
+// side) — for at least one currently-outstanding row. Already-linked transactions are excluded.
 function computePaymentCandidates(rows) {
-  const uid = getUserId();
-  const myData = uid === 'tony' ? _iouDataCache.tony : _iouDataCache.peter;
   const payments = loadIOUPayments();
 
   const usedTxnKeys = new Set();
-  Object.values(payments).forEach(p => { if (p?.settledBy?.txnKey) usedTxnKeys.add(p.settledBy.txnKey); });
+  Object.values(payments).forEach(raw => {
+    const entry = normalizeIOUEntry(raw);
+    if (entry.billLink?.txnKey) usedTxnKeys.add(entry.billLink.txnKey);
+    entry.reimbursements.forEach(r => r.txnKey && usedTxnKeys.add(r.txnKey));
+  });
 
-  const myTxns = [];
-  Object.entries(myData).forEach(([mk, md]) => {
-    (md.transactions || []).forEach((t, i) => {
-      const txnKey = `${mk}|${i}|${t.date}|${t.amount}`;
-      if (!usedTxnKeys.has(txnKey)) myTxns.push({ ...t, _mk: mk, _ml: md.label, txnKey });
+  const outstanding = rows.filter(r => r.owedAmount > 0.005 && !resolveIOUSettlement(r, normalizeIOUEntry(payments[r.key])).isSettled);
+  if (!outstanding.length) return [];
+
+  const allTxns = [];
+  ['peter', 'tony'].forEach(uid => {
+    const data = _iouDataCache[uid] || {};
+    Object.entries(data).forEach(([mk, md]) => {
+      (md.transactions || []).forEach((t, i) => {
+        const txnKey = `${uid}|${mk}|${i}|${t.date}|${t.amount}`;
+        if (!usedTxnKeys.has(txnKey)) allTxns.push({ ...t, _uid: uid, _mk: mk, _ml: md.label, txnKey });
+      });
     });
   });
 
-  const outstanding = rows.filter(r => r.owedBy === uid && !payments[r.key] && r.owedAmount > 0.005);
-  if (!outstanding.length) return [];
-
-  return myTxns
+  return allTxns
     .map(t => {
-      const bestScore = outstanding.reduce((best, r) =>
-        Math.max(best, _scoreMatch(t, { amount: r.owedAmount, date: r.basisDate, category: r.cat })), 0);
+      const bestScore = outstanding.reduce((best, r) => {
+        const isBillRole = r.owedBy && t._uid !== r.owedBy;
+        const target = isBillRole ? r.fullAmount : r.owedAmount;
+        return Math.max(best, _scoreMatch(t, { amount: target, date: r.basisDate, category: r.cat }));
+      }, 0);
       return { t, bestScore };
     })
     .filter(c => c.bestScore > 18)
@@ -4252,20 +4385,40 @@ function computePaymentCandidates(rows) {
 
 function renderIOUTray(rows) {
   _iouTrayCandidates = computePaymentCandidates(rows);
-  const tray  = document.getElementById('iou-tray');
-  const body  = document.getElementById('iou-tray-body');
-  const title = document.getElementById('iou-tray-title');
-
+  const tray = document.getElementById('iou-tray');
   if (!_iouTrayCandidates.length) { tray.style.display = 'none'; return; }
-
   tray.style.display = 'block';
   tray.classList.toggle('collapsed', _iouTrayCollapsed);
-  title.textContent = `Your payments (${_iouTrayCandidates.length})`;
-  body.innerHTML = _iouTrayCandidates.map((t, i) => `
-    <div class="iou-chip" data-idx="${i}">
-      <div class="iou-chip-amount">$${Math.abs(t.amount).toFixed(2)}</div>
-      <div class="iou-chip-desc">${t.description||'—'} · ${t.date||''}</div>
-    </div>`).join('');
+  renderIOUTrayChips();
+}
+
+function filterIOUTray(query) {
+  _iouTraySearchQuery = query || '';
+  renderIOUTrayChips();
+}
+
+function renderIOUTrayChips() {
+  const body  = document.getElementById('iou-tray-body');
+  const title = document.getElementById('iou-tray-title');
+  const q = _iouTraySearchQuery.trim().toLowerCase();
+  const filtered = q
+    ? _iouTrayCandidates.filter(t => `${t.description||''} ${t.date||''} ${t.amount} ${t._uid||''}`.toLowerCase().includes(q))
+    : _iouTrayCandidates;
+
+  title.textContent = q && filtered.length !== _iouTrayCandidates.length
+    ? `Payments (${filtered.length} of ${_iouTrayCandidates.length})`
+    : `Payments (${_iouTrayCandidates.length})`;
+
+  body.innerHTML = filtered.length
+    ? filtered.map(t => `
+      <div class="iou-chip" data-txnkey="${t.txnKey}">
+        <div class="iou-chip-top">
+          <span class="iou-chip-amount">$${Math.abs(t.amount).toFixed(2)}</span>
+          <span class="iou-chip-person">${t._uid === 'tony' ? 'Tony' : 'Peter'}</span>
+        </div>
+        <div class="iou-chip-desc">${t.description||'—'} · ${t.date||''}</div>
+      </div>`).join('')
+    : `<div class="iou-tray-empty">No payments match "${_iouTraySearchQuery}"</div>`;
 
   attachIOUDragHandlers();
 }
@@ -4286,7 +4439,7 @@ function attachIOUDragHandlers() {
 
 function startIOUDrag(e, chip) {
   e.preventDefault();
-  const txn = _iouTrayCandidates[+chip.dataset.idx];
+  const txn = _iouTrayCandidates.find(t => t.txnKey === chip.dataset.txnkey);
   if (!txn) return;
 
   const ghost = document.createElement('div');
@@ -4309,6 +4462,15 @@ function positionIOUGhost(ghost, x, y) {
   ghost.style.top = (y + 14) + 'px';
 }
 
+// A drop "looks good" (gets the suggested highlight) if the dragged amount is close to whichever
+// target applies to this row for this transaction's owner — the bill total if they're on the
+// paying side, or the owed share if they're on the owing side.
+function iouDragLooksGood(row, txn) {
+  const isBillRole = row.owedBy && txn._uid !== row.owedBy;
+  const target = isBillRole ? row.fullAmount : row.owedAmount;
+  return _scoreMatch(txn, { amount: target, date: row.basisDate, category: row.cat }) >= 40;
+}
+
 function onIOUDragMove(e) {
   if (!_iouDrag) return;
   positionIOUGhost(_iouDrag.ghost, e.clientX, e.clientY);
@@ -4321,8 +4483,8 @@ function onIOUDragMove(e) {
     if (_iouDrag.lastZone) _iouDrag.lastZone.classList.remove('drag-over', 'drag-suggested');
     if (zone) {
       zone.classList.add('drag-over');
-      const target = { amount: +zone.dataset.owedAmount, date: zone.dataset.basisDate, category: zone.dataset.cat };
-      if (_scoreMatch(_iouDrag.txn, target) >= 40) zone.classList.add('drag-suggested');
+      const row = _iouRowsCache.find(r => r.key === zone.dataset.rowKey);
+      if (row && iouDragLooksGood(row, _iouDrag.txn)) zone.classList.add('drag-suggested');
     }
     _iouDrag.lastZone = zone;
   }
@@ -4339,7 +4501,7 @@ function onIOUDragEnd() {
 
   if (lastZone) {
     lastZone.classList.remove('drag-over', 'drag-suggested');
-    settleIOURow(lastZone.dataset.rowKey, txn);
+    linkIOURow(lastZone.dataset.rowKey, txn);
   }
   _iouDrag = null;
 }
@@ -4358,7 +4520,7 @@ Object.assign(window, {
   selectName, confirmOtherName, forgetUser,
   doLogin, doSignOut, togglePasswordVisibility,
   renderDashboard, refreshDashboard, renderHistory, refreshHistory, renderIOU, refreshIOU,
-  undoIOURow, toggleIOUTray,
+  undoIOURow, toggleIOUTray, filterIOUBlocks, filterIOUTray,
   addCategory, removeCategory, removeCorrection, clearCorrections,
   openSplitModal, closeSplitModal, updateSplitA, updateSplitB, confirmSplit, unsplitTransaction,
   togglePreview,
