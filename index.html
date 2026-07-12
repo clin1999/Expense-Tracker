@@ -575,6 +575,7 @@ select:focus{outline:none;border-color:var(--accent)}
 .iou-block-row.drag-over { border-color: var(--text3); background: var(--surface2); }
 .iou-block-row.drag-suggested { border-color: var(--accent); background: var(--accent-l); box-shadow: 0 0 0 2px var(--accent-l); }
 .iou-evidence { font-size: .68rem; color: var(--text3); margin-top: 2px; }
+.iou-evidence-verified { color: var(--accent); font-weight: 500; }
 .iou-basis-details { margin-top: 3px; }
 .iou-basis-details summary {
   cursor: pointer; list-style: none; font-size: .66rem; color: var(--text3);
@@ -582,12 +583,23 @@ select:focus{outline:none;border-color:var(--accent)}
 }
 .iou-basis-list { margin-top: 4px; border-left: 2px solid var(--border2); padding-left: 8px; }
 .iou-basis-row {
-  display: grid; grid-template-columns: 70px 50px 1fr 70px; gap: 8px;
-  font-size: .72rem; color: var(--text2); padding: 2px 0;
+  display: grid; grid-template-columns: 70px 50px 1fr 70px 66px; gap: 8px;
+  align-items: center;
+  font-size: .72rem; color: var(--text2); padding: 3px 0;
 }
-.iou-basis-row span:last-child { text-align: right; font-family: 'DM Mono', monospace; }
+.iou-basis-row span:nth-child(4) { text-align: right; font-family: 'DM Mono', monospace; }
+.iou-basis-row.excluded { opacity: .5; }
+.iou-basis-row.excluded span:not(:last-child) { text-decoration: line-through; }
+.iou-basis-toggle {
+  border: 1px solid var(--border2); background: transparent; color: var(--text3);
+  border-radius: 10px; padding: 2px 8px; cursor: pointer;
+  font-family: 'DM Mono', monospace; font-size: .6rem; text-transform: uppercase; letter-spacing: .03em;
+}
+.iou-basis-toggle:hover { border-color: var(--red); color: var(--red); }
+.iou-basis-row.excluded .iou-basis-toggle { border-color: var(--accent); color: var(--accent); }
+.iou-basis-row.excluded .iou-basis-toggle:hover { border-color: var(--accent); color: var(--accent); opacity: .8; }
 @media(max-width:600px) {
-  .iou-basis-row { grid-template-columns: 60px 45px 1fr 60px; }
+  .iou-basis-row { grid-template-columns: 55px 42px 1fr 55px 58px; font-size: .68rem; }
 }
 .iou-undo-btn {
   border: 1px solid var(--border2); background: transparent; color: var(--text3);
@@ -3830,8 +3842,13 @@ let _iouTrayCollapsed = false;
 let _iouTraySearchQuery = '';
 let _iouBlockSearchQuery = '';
 
-function sumCatFrom(monthData, cat) {
-  return (monthData?.transactions || []).filter(t => t.category === cat).reduce((s,t) => s + Math.abs(t.amount), 0);
+// Tag each of a month's category-matching transactions with a stable key (same scheme used by
+// the payments tray) so a specific one can be excluded from a row's total — e.g. a reimbursement
+// for an older month's bill that happens to be dated/logged into this month.
+function taggedCatTxns(monthData, cat, uid, mk) {
+  return (monthData?.transactions || [])
+    .map((t, i) => ({ ...t, _uid: uid, txnKey: `${uid}|${mk}|${i}|${t.date}|${t.amount}` }))
+    .filter(t => t.category === cat);
 }
 
 // One row per (category, month) that has any activity — the unit the drag-to-settle UI acts on.
@@ -3840,43 +3857,55 @@ function sumCatFrom(monthData, cat) {
 // clearly meant to cover the whole thing rather than just the usual half share.
 function computeIOURows(peter, tony) {
   const allKeys = [...new Set([...sortedKeys(peter), ...sortedKeys(tony)])].sort();
+  const payments = loadIOUPayments();
   const rows = [];
 
   SHARED_EXPENSE_CATEGORIES.forEach(cfg => {
     allKeys.forEach(mk => {
       const pData = peter[mk], tData = tony[mk];
-      const pPaid = sumCatFrom(pData, cfg.cat);
-      const tPaid = sumCatFrom(tData, cfg.cat);
-      if (pPaid === 0 && tPaid === 0) return;
+      const rowKey = iouKey(cfg.cat, mk);
+      const excludeSet = new Set(normalizeIOUEntry(payments[rowKey]).excludedTxnKeys || []);
 
-      let owedAmount = 0, owedBy = null, fullAmount = 0, payerLabel = '', basisTxns = [];
+      const pAll = taggedCatTxns(pData, cfg.cat, 'peter', mk);
+      const tAll = taggedCatTxns(tData, cfg.cat, 'tony', mk);
+      if (!pAll.length && !tAll.length) return; // no activity at all — nothing to show or review
+
+      const pPaid = pAll.filter(t => !excludeSet.has(t.txnKey)).reduce((s,t) => s + Math.abs(t.amount), 0);
+      const tPaid = tAll.filter(t => !excludeSet.has(t.txnKey)).reduce((s,t) => s + Math.abs(t.amount), 0);
+
+      let owedAmount = 0, owedBy = null, fullAmount = 0, payerLabel = '';
       if (cfg.netMonthly) {
         const diff = pPaid - tPaid; // positive = tony owes peter, negative = peter owes tony
         owedAmount = Math.abs(diff) / 2;
         owedBy = diff > 0.005 ? 'tony' : diff < -0.005 ? 'peter' : null;
         fullAmount = Math.max(pPaid, tPaid);
         payerLabel = `Peter paid $${pPaid.toFixed(2)} · Tony paid $${tPaid.toFixed(2)}`;
-        basisTxns = [
-          ...(pData?.transactions||[]).map(t => ({ ...t, _uid: 'peter' })),
-          ...(tData?.transactions||[]).map(t => ({ ...t, _uid: 'tony' })),
-        ].filter(t => t.category === cfg.cat);
       } else {
-        // One-directional (currently only Insurance): Peter is the only possible payer.
+        // One-directional (currently only Insurance): Peter is the intended payer, but Tony's
+        // own transactions in this category (if any) still reduce what he owes — show them too,
+        // or a $0 debt looks unexplained next to "Peter paid $X" with no mention of why.
         owedAmount = Math.max(0, pPaid - tPaid);
         owedBy = owedAmount > 0.005 ? 'tony' : null;
         fullAmount = pPaid;
-        payerLabel = `Peter paid $${pPaid.toFixed(2)}`;
-        basisTxns = (pData?.transactions||[]).filter(t => t.category === cfg.cat).map(t => ({ ...t, _uid: 'peter' }));
+        payerLabel = tPaid > 0.005
+          ? `Peter paid $${pPaid.toFixed(2)} · Tony paid $${tPaid.toFixed(2)} directly`
+          : `Peter paid $${pPaid.toFixed(2)}`;
       }
-      basisTxns.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+
+      // basisTxns keeps EVERY category-matching transaction, excluded or not, so the verify
+      // breakdown can show the full picture and let an excluded one be brought back.
+      const basisTxns = [...pAll, ...tAll]
+        .map(t => ({ ...t, excluded: excludeSet.has(t.txnKey) }))
+        .sort((a,b) => (a.date||'').localeCompare(b.date||''));
+      const includedTxns = basisTxns.filter(t => !t.excluded);
       const payerUid = owedBy === 'tony' ? 'peter' : owedBy === 'peter' ? 'tony' : null;
 
       rows.push({
-        key: iouKey(cfg.cat, mk), cat: cfg.cat, label: cfg.label,
+        key: rowKey, cat: cfg.cat, label: cfg.label,
         monthKey: mk, monthLbl: monthLabel(mk),
         owedAmount, owedBy, payerUid, fullAmount, payerLabel, basisTxns,
-        basisDate: basisTxns[basisTxns.length-1]?.date || '',
-        basisDesc: basisTxns.map(t => t.description).filter(Boolean).join(', '),
+        basisDate: includedTxns[includedTxns.length-1]?.date || '',
+        basisDesc: includedTxns.map(t => t.description).filter(Boolean).join(', '),
       });
     });
   });
@@ -3887,10 +3916,10 @@ function computeIOURows(peter, tony) {
 // Old shape was a single boolean-ish { paidAt, type, settledBy }. New shape supports an optional
 // linked bill transaction (evidence only) plus any number of accumulated reimbursement links.
 function normalizeIOUEntry(raw) {
-  if (!raw) return { billLink: null, reimbursements: [] };
-  if (raw.reimbursements) return raw;
-  if (raw.settledBy) return { billLink: null, reimbursements: [{ ...raw.settledBy, at: raw.paidAt }] };
-  return { billLink: null, reimbursements: [] };
+  if (!raw) return { billLink: null, reimbursements: [], excludedTxnKeys: [] };
+  if (raw.reimbursements) return { excludedTxnKeys: [], ...raw };
+  if (raw.settledBy) return { billLink: null, reimbursements: [{ ...raw.settledBy, at: raw.paidAt }], excludedTxnKeys: [] };
+  return { billLink: null, reimbursements: [], excludedTxnKeys: [] };
 }
 
 // Recognises whether the linked reimbursements were meant to cover just the usual half share or
@@ -4031,8 +4060,11 @@ function buildIOURowHtml(r, payments) {
 
   // "This person paid this amount on the day" — persistent prompt shown right under the row
   // for whatever was just linked, so both the original bill and each reimbursement are visible.
+  // Green = confirmed by a drag, not just auto-calculated. Two separate confirmations: the
+  // expense itself (billLink) and the reimbursement(s) — only once both are verified is the
+  // row actually settled, vs. just guessed from category totals.
   const billNote = entry.billLink
-    ? `<div class="iou-evidence">💰 ${personLabel(entry.billLink.uid)} paid $${Math.abs(entry.billLink.amount).toFixed(2)} on ${entry.billLink.date||'—'}</div>` : '';
+    ? `<div class="iou-evidence iou-evidence-verified">✅ ${personLabel(entry.billLink.uid)} paid $${Math.abs(entry.billLink.amount).toFixed(2)} on ${entry.billLink.date||'—'} — expense verified</div>` : '';
 
   let reimbRunning = 0;
   const reimbNotes = entry.reimbursements.map((rb, i) => {
@@ -4041,23 +4073,25 @@ function buildIOURowHtml(r, payments) {
     const who = personLabel(rb.uid);
     const amt = Math.abs(rb.amount).toFixed(2);
     const when = rb.date || '—';
-    if (!isLast) return `<div class="iou-evidence">${who} paid $${amt} on ${when} (partial)</div>`;
+    if (!isLast) return `<div class="iou-evidence iou-evidence-verified">✅ ${who} paid $${amt} on ${when} (partial — verified)</div>`;
     const stillOwed = settlement ? Math.max(0, settlement.required - reimbRunning) : 0;
     return stillOwed <= 0.01
-      ? `<div class="iou-evidence">✅ ${who} paid $${amt} on ${when} — settles it</div>`
-      : `<div class="iou-evidence">${who} paid $${amt} on ${when} — $${stillOwed.toFixed(2)} still owed</div>`;
+      ? `<div class="iou-evidence iou-evidence-verified">✅ ${who} paid $${amt} on ${when} — reimbursement verified, settled</div>`
+      : `<div class="iou-evidence iou-evidence-verified">✅ ${who} paid $${amt} on ${when} — $${stillOwed.toFixed(2)} still owed</div>`;
   }).join('');
 
   // Lets you verify exactly which real transactions were summed to produce r.payerLabel —
   // that total is auto-calculated from category totals, not something you dragged in.
+  const excludedCount = r.basisTxns.filter(t => t.excluded).length;
   const basisDetails = r.basisTxns.length ? `<details class="iou-basis-details">
-    <summary>▸ verify — ${r.basisTxns.length} transaction${r.basisTxns.length>1?'s':''}</summary>
+    <summary>▸ verify — ${r.basisTxns.length} transaction${r.basisTxns.length>1?'s':''}${excludedCount ? ` (${excludedCount} excluded)` : ''}</summary>
     <div class="iou-basis-list">
-      ${r.basisTxns.map(t => `<div class="iou-basis-row">
+      ${r.basisTxns.map(t => `<div class="iou-basis-row${t.excluded?' excluded':''}">
         <span>${t.date||'—'}</span>
         <span>${personLabel(t._uid)}</span>
         <span>${t.description||'—'}</span>
         <span>$${Math.abs(t.amount).toFixed(2)}</span>
+        <span><button class="iou-basis-toggle" onclick="toggleIOUBasisExclude('${r.key}','${t.txnKey}')">${t.excluded?'Include':'Exclude'}</button></span>
       </div>`).join('')}
     </div>
   </details>` : '';
@@ -4080,6 +4114,23 @@ function undoIOURow(key) {
   delete payments[key];
   saveIOUPayments(payments);
   showCorrectionToast('Linked payments cleared');
+  renderIOU();
+}
+
+// Accept/reject a transaction that the auto-calculated category total picked up for this row —
+// e.g. a reimbursement for an older month's bill that happens to be dated into this one.
+// Rejecting excludes it from this row's total only; it stays untouched everywhere else in the
+// app and remains draggable from the payments tray to link onto the row it actually belongs to.
+function toggleIOUBasisExclude(rowKey, txnKey) {
+  const payments = loadIOUPayments();
+  const entry = normalizeIOUEntry(payments[rowKey]);
+  const idx = entry.excludedTxnKeys.indexOf(txnKey);
+  const nowExcluding = idx === -1;
+  if (nowExcluding) entry.excludedTxnKeys.push(txnKey);
+  else entry.excludedTxnKeys.splice(idx, 1);
+  payments[rowKey] = entry;
+  saveIOUPayments(payments);
+  showCorrectionToast(nowExcluding ? 'Excluded from this total' : 'Re-included in this total');
   renderIOU();
 }
 
@@ -4552,7 +4603,7 @@ Object.assign(window, {
   selectName, confirmOtherName, forgetUser,
   doLogin, doSignOut, togglePasswordVisibility,
   renderDashboard, refreshDashboard, renderHistory, refreshHistory, renderIOU, refreshIOU,
-  undoIOURow, toggleIOUTray, filterIOUBlocks, filterIOUTray,
+  undoIOURow, toggleIOUTray, filterIOUBlocks, filterIOUTray, toggleIOUBasisExclude,
   addCategory, removeCategory, removeCorrection, clearCorrections,
   openSplitModal, closeSplitModal, updateSplitA, updateSplitB, confirmSplit, unsplitTransaction,
   togglePreview,
