@@ -583,23 +583,27 @@ select:focus{outline:none;border-color:var(--accent)}
 }
 .iou-basis-list { margin-top: 4px; border-left: 2px solid var(--border2); padding-left: 8px; }
 .iou-basis-row {
-  display: grid; grid-template-columns: 70px 50px 1fr 70px 66px; gap: 8px;
+  display: grid; grid-template-columns: 70px 50px 1fr 70px auto; gap: 8px;
   align-items: center;
   font-size: .72rem; color: var(--text2); padding: 3px 0;
 }
 .iou-basis-row span:nth-child(4) { text-align: right; font-family: 'DM Mono', monospace; }
 .iou-basis-row.excluded { opacity: .5; }
-.iou-basis-row.excluded span:not(:last-child) { text-decoration: line-through; }
+.iou-basis-row.excluded span:not(.iou-basis-actions) { text-decoration: line-through; }
+.iou-basis-actions { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
 .iou-basis-toggle {
   border: 1px solid var(--border2); background: transparent; color: var(--text3);
-  border-radius: 10px; padding: 2px 8px; cursor: pointer;
+  border-radius: 10px; padding: 2px 8px; cursor: pointer; white-space: nowrap;
   font-family: 'DM Mono', monospace; font-size: .6rem; text-transform: uppercase; letter-spacing: .03em;
 }
 .iou-basis-toggle:hover { border-color: var(--red); color: var(--red); }
 .iou-basis-row.excluded .iou-basis-toggle { border-color: var(--accent); color: var(--accent); }
 .iou-basis-row.excluded .iou-basis-toggle:hover { border-color: var(--accent); color: var(--accent); opacity: .8; }
+.iou-basis-move { border-color: var(--accent); color: var(--accent); }
+.iou-basis-move:hover { border-color: var(--accent); color: var(--accent); opacity: .8; }
 @media(max-width:600px) {
-  .iou-basis-row { grid-template-columns: 55px 42px 1fr 55px 58px; font-size: .68rem; }
+  .iou-basis-row { grid-template-columns: 55px 42px 1fr 55px; font-size: .68rem; }
+  .iou-basis-actions { grid-column: 1 / -1; justify-content: flex-start; }
 }
 .iou-undo-btn {
   border: 1px solid var(--border2); background: transparent; color: var(--text3);
@@ -4086,13 +4090,20 @@ function buildIOURowHtml(r, payments) {
   const basisDetails = r.basisTxns.length ? `<details class="iou-basis-details">
     <summary>▸ verify — ${r.basisTxns.length} transaction${r.basisTxns.length>1?'s':''}${excludedCount ? ` (${excludedCount} excluded)` : ''}</summary>
     <div class="iou-basis-list">
-      ${r.basisTxns.map(t => `<div class="iou-basis-row${t.excluded?' excluded':''}">
-        <span>${t.date||'—'}</span>
-        <span>${personLabel(t._uid)}</span>
-        <span>${t.description||'—'}</span>
-        <span>$${Math.abs(t.amount).toFixed(2)}</span>
-        <span><button class="iou-basis-toggle" onclick="toggleIOUBasisExclude('${r.key}','${t.txnKey}')">${t.excluded?'Include':'Exclude'}</button></span>
-      </div>`).join('')}
+      ${r.basisTxns.map(t => {
+        const moveTarget = t.excluded ? null : detectIOUMoveTarget(r, t);
+        const actions = t.excluded
+          ? `<button class="iou-basis-toggle" onclick="toggleIOUBasisExclude('${r.key}','${t.txnKey}')">Include</button>`
+          : `${moveTarget ? `<button class="iou-basis-toggle iou-basis-move" onclick="moveIOUBasisTxn('${r.key}','${t.txnKey}')">Move → ${moveTarget.monthLbl}</button>` : ''}
+             <button class="iou-basis-toggle" onclick="toggleIOUBasisExclude('${r.key}','${t.txnKey}')">Exclude</button>`;
+        return `<div class="iou-basis-row${t.excluded?' excluded':''}">
+          <span>${t.date||'—'}</span>
+          <span>${personLabel(t._uid)}</span>
+          <span>${t.description||'—'}</span>
+          <span>$${Math.abs(t.amount).toFixed(2)}</span>
+          <span class="iou-basis-actions">${actions}</span>
+        </div>`;
+      }).join('')}
     </div>
   </details>` : '';
 
@@ -4132,6 +4143,52 @@ function toggleIOUBasisExclude(rowKey, txnKey) {
   saveIOUPayments(payments);
   showCorrectionToast(nowExcluding ? 'Excluded from this total' : 'Re-included in this total');
   renderIOU();
+}
+
+const IOU_MONTH_ABBR = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+
+// Some reimbursements get logged on a day that falls in one month but the description names a
+// DIFFERENT month's bill ("Bill Payment – Electricity Jan Tony" dated in March). If that
+// mentioned month has its own outstanding row in the same category, surface it as a one-click
+// move target instead of leaving the user to manually exclude here and re-find it in the tray.
+function detectIOUMoveTarget(row, txn) {
+  const text = (txn.description || '').toLowerCase();
+  const [curYear, curMonthNum] = row.monthKey.split('-').map(Number);
+
+  for (let i = 0; i < 12; i++) {
+    const abbr = IOU_MONTH_ABBR[i];
+    if (!new RegExp('\\b' + abbr).test(text)) continue;
+    const mentionedMonthNum = i + 1;
+    if (mentionedMonthNum === curMonthNum) continue; // names the current month — nothing to move
+    const year = mentionedMonthNum < curMonthNum ? curYear : curYear - 1;
+    const targetMk = `${year}-${String(mentionedMonthNum).padStart(2,'0')}`;
+    const targetRow = _iouRowsCache.find(r => r.cat === row.cat && r.monthKey === targetMk);
+    if (targetRow) return targetRow;
+  }
+  return null;
+}
+
+// Excludes the transaction from this row's total and links it to the detected target row in one
+// action — after an explicit confirm, since the month detection is just a text match and could
+// be wrong (e.g. a description mentioning a month for an unrelated reason).
+function moveIOUBasisTxn(rowKey, txnKey) {
+  const row = _iouRowsCache.find(r => r.key === rowKey);
+  if (!row) return;
+  const txn = row.basisTxns.find(t => t.txnKey === txnKey);
+  if (!txn) return;
+  const target = detectIOUMoveTarget(row, txn);
+  if (!target) return;
+
+  const ok = confirm(`Move "${txn.description||'this payment'}" ($${Math.abs(txn.amount).toFixed(2)} on ${txn.date||'—'}) to ${target.label} — ${target.monthLbl} instead?\n\nIt will be excluded from ${row.monthLbl}'s total here and linked as a payment there.`);
+  if (!ok) return;
+
+  const payments = loadIOUPayments();
+  const entry = normalizeIOUEntry(payments[rowKey]);
+  if (!entry.excludedTxnKeys.includes(txnKey)) entry.excludedTxnKeys.push(txnKey);
+  payments[rowKey] = entry;
+  saveIOUPayments(payments);
+
+  linkIOURow(target.key, txn); // reuses the same role-aware linking, save, toast, and re-render
 }
 
 // Which role a dragged transaction plays for this row: 'bill' (evidence only, doesn't affect
@@ -4620,7 +4677,7 @@ Object.assign(window, {
   selectName, confirmOtherName, forgetUser,
   doLogin, doSignOut, togglePasswordVisibility,
   renderDashboard, refreshDashboard, renderHistory, refreshHistory, renderIOU, refreshIOU,
-  undoIOURow, toggleIOUTray, filterIOUBlocks, filterIOUTray, toggleIOUBasisExclude,
+  undoIOURow, toggleIOUTray, filterIOUBlocks, filterIOUTray, toggleIOUBasisExclude, moveIOUBasisTxn,
   addCategory, removeCategory, removeCorrection, clearCorrections,
   openSplitModal, closeSplitModal, updateSplitA, updateSplitB, confirmSplit, unsplitTransaction,
   togglePreview,
