@@ -575,6 +575,20 @@ select:focus{outline:none;border-color:var(--accent)}
 .iou-block-row.drag-over { border-color: var(--text3); background: var(--surface2); }
 .iou-block-row.drag-suggested { border-color: var(--accent); background: var(--accent-l); box-shadow: 0 0 0 2px var(--accent-l); }
 .iou-evidence { font-size: .68rem; color: var(--text3); margin-top: 2px; }
+.iou-basis-details { margin-top: 3px; }
+.iou-basis-details summary {
+  cursor: pointer; list-style: none; font-size: .66rem; color: var(--text3);
+  font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .04em;
+}
+.iou-basis-list { margin-top: 4px; border-left: 2px solid var(--border2); padding-left: 8px; }
+.iou-basis-row {
+  display: grid; grid-template-columns: 70px 50px 1fr 70px; gap: 8px;
+  font-size: .72rem; color: var(--text2); padding: 2px 0;
+}
+.iou-basis-row span:last-child { text-align: right; font-family: 'DM Mono', monospace; }
+@media(max-width:600px) {
+  .iou-basis-row { grid-template-columns: 60px 45px 1fr 60px; }
+}
 .iou-undo-btn {
   border: 1px solid var(--border2); background: transparent; color: var(--text3);
   border-radius: 6px; width: 26px; height: 26px; cursor: pointer; font-size: .8rem;
@@ -3842,14 +3856,17 @@ function computeIOURows(peter, tony) {
         owedBy = diff > 0.005 ? 'tony' : diff < -0.005 ? 'peter' : null;
         fullAmount = Math.max(pPaid, tPaid);
         payerLabel = `Peter paid $${pPaid.toFixed(2)} · Tony paid $${tPaid.toFixed(2)}`;
-        basisTxns = [...(pData?.transactions||[]), ...(tData?.transactions||[])].filter(t => t.category === cfg.cat);
+        basisTxns = [
+          ...(pData?.transactions||[]).map(t => ({ ...t, _uid: 'peter' })),
+          ...(tData?.transactions||[]).map(t => ({ ...t, _uid: 'tony' })),
+        ].filter(t => t.category === cfg.cat);
       } else {
         // One-directional (currently only Insurance): Peter is the only possible payer.
         owedAmount = Math.max(0, pPaid - tPaid);
         owedBy = owedAmount > 0.005 ? 'tony' : null;
         fullAmount = pPaid;
         payerLabel = `Peter paid $${pPaid.toFixed(2)}`;
-        basisTxns = (pData?.transactions||[]).filter(t => t.category === cfg.cat);
+        basisTxns = (pData?.transactions||[]).filter(t => t.category === cfg.cat).map(t => ({ ...t, _uid: 'peter' }));
       }
       basisTxns.sort((a,b) => (a.date||'').localeCompare(b.date||''));
       const payerUid = owedBy === 'tony' ? 'peter' : owedBy === 'peter' ? 'tony' : null;
@@ -3857,7 +3874,7 @@ function computeIOURows(peter, tony) {
       rows.push({
         key: iouKey(cfg.cat, mk), cat: cfg.cat, label: cfg.label,
         monthKey: mk, monthLbl: monthLabel(mk),
-        owedAmount, owedBy, payerUid, fullAmount, payerLabel,
+        owedAmount, owedBy, payerUid, fullAmount, payerLabel, basisTxns,
         basisDate: basisTxns[basisTxns.length-1]?.date || '',
         basisDesc: basisTxns.map(t => t.description).filter(Boolean).join(', '),
       });
@@ -4031,11 +4048,26 @@ function buildIOURowHtml(r, payments) {
       : `<div class="iou-evidence">${who} paid $${amt} on ${when} — $${stillOwed.toFixed(2)} still owed</div>`;
   }).join('');
 
+  // Lets you verify exactly which real transactions were summed to produce r.payerLabel —
+  // that total is auto-calculated from category totals, not something you dragged in.
+  const basisDetails = r.basisTxns.length ? `<details class="iou-basis-details">
+    <summary>▸ verify — ${r.basisTxns.length} transaction${r.basisTxns.length>1?'s':''}</summary>
+    <div class="iou-basis-list">
+      ${r.basisTxns.map(t => `<div class="iou-basis-row">
+        <span>${t.date||'—'}</span>
+        <span>${personLabel(t._uid)}</span>
+        <span>${t.description||'—'}</span>
+        <span>$${Math.abs(t.amount).toFixed(2)}</span>
+      </div>`).join('')}
+    </div>
+  </details>` : '';
+
   return `<div class="iou-block-row ${isSettled?'settled':''} ${isDropzone?'iou-dropzone':''}" data-row-key="${r.key}">
     <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text3)">${r.monthLbl}</span>
     <span>
       <span style="font-weight:500">${headline}</span>
       <div class="iou-evidence">${r.payerLabel}</div>
+      ${basisDetails}
       ${fullNote}${billNote}${reimbNotes}
     </span>
     <span class="hide-m">${statusHtml}</span>
