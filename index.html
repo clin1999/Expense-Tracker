@@ -4134,8 +4134,24 @@ function toggleIOUBasisExclude(rowKey, txnKey) {
   renderIOU();
 }
 
-// A dragged transaction from the non-owing side (i.e. whoever paid the bill) is linked as
-// evidence only and doesn't affect the total. A transaction from the owing side accumulates
+// Which role a dragged transaction plays for this row: 'bill' (evidence only, doesn't affect
+// the total) or 'reimbursement' (counts toward settling it). Whoever's ACCOUNT a transaction
+// belongs to isn't enough on its own — the same real payment often shows up on both sides:
+// Tony's own outgoing "Brother Transfer" AND Peter's incoming credit for that same transfer
+// (negative amount, since this app's convention is positive=expense/negative=income). Both are
+// evidence of the reimbursement, not the bill, so direction of money matters as much as account.
+function iouTxnRole(row, txn) {
+  if (!row.owedBy || !txn._uid) return 'reimbursement';
+  const onOwingSide = txn._uid === row.owedBy;
+  const onPayingSide = txn._uid === row.payerUid;
+  if (onOwingSide && txn.amount >= 0) return 'reimbursement'; // e.g. Tony's own outgoing payment
+  if (onPayingSide && txn.amount < 0)  return 'reimbursement'; // e.g. Peter receiving Tony's transfer
+  if (onPayingSide && txn.amount >= 0) return 'bill';          // e.g. Peter's own bill payment
+  return 'reimbursement';
+}
+
+// A dragged transaction in the 'bill' role (whoever paid it, from their own outgoing record) is
+// linked as evidence only and doesn't affect the total. A 'reimbursement' role accumulates
 // toward settling the row — see resolveIOUSettlement for how much is actually required.
 function linkIOURow(rowKey, txn) {
   const row = _iouRowsCache.find(r => r.key === rowKey);
@@ -4146,7 +4162,7 @@ function linkIOURow(rowKey, txn) {
   const who = personLabel(txn._uid);
   const amt = Math.abs(txn.amount).toFixed(2);
 
-  if (txn._uid && row.owedBy && txn._uid !== row.owedBy) {
+  if (iouTxnRole(row, txn) === 'bill') {
     entry.billLink = { txnKey: txn.txnKey, uid: txn._uid, date: txn.date, amount: txn.amount, description: txn.description };
     showCorrectionToast(`${who} paid $${amt} on ${txn.date||'—'}`);
   } else {
@@ -4406,6 +4422,9 @@ function _scoreMatch(myTxn, target) {
    'wifi','internet','broadband','rates','council','insurance','groceries','pak n save',
    'woolworths','countdown','new world'].forEach(kw => { if (desc.includes(kw)) score += 7; });
 
+  // ── Category itself signals a cross-person payment, regardless of how the description reads ──
+  if ((myTxn.category || '').toLowerCase() === 'brother transfer') score += 25;
+
   // ── Date proximity ──
   try {
     const pd = d => { const m = (d||'').match(/(\d{2})\/(\d{2})(?:\/(\d{4}))?/); return m ? new Date(m[3]||new Date().getFullYear(), +m[2]-1, +m[1]) : null; };
@@ -4455,8 +4474,7 @@ function computePaymentCandidates(rows) {
   return allTxns
     .map(t => {
       const bestScore = outstanding.reduce((best, r) => {
-        const isBillRole = r.owedBy && t._uid !== r.owedBy;
-        const target = isBillRole ? r.fullAmount : r.owedAmount;
+        const target = iouTxnRole(r, t) === 'bill' ? r.fullAmount : r.owedAmount;
         return Math.max(best, _scoreMatch(t, { amount: target, date: r.basisDate, category: r.cat }));
       }, 0);
       return { t, bestScore };
@@ -4549,8 +4567,7 @@ function positionIOUGhost(ghost, x, y) {
 // target applies to this row for this transaction's owner — the bill total if they're on the
 // paying side, or the owed share if they're on the owing side.
 function iouDragLooksGood(row, txn) {
-  const isBillRole = row.owedBy && txn._uid !== row.owedBy;
-  const target = isBillRole ? row.fullAmount : row.owedAmount;
+  const target = iouTxnRole(row, txn) === 'bill' ? row.fullAmount : row.owedAmount;
   return _scoreMatch(txn, { amount: target, date: row.basisDate, category: row.cat }) >= 40;
 }
 
