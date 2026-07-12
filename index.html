@@ -4091,11 +4091,13 @@ function buildIOURowHtml(r, payments) {
     <summary>▸ verify — ${r.basisTxns.length} transaction${r.basisTxns.length>1?'s':''}${excludedCount ? ` (${excludedCount} excluded)` : ''}</summary>
     <div class="iou-basis-list">
       ${r.basisTxns.map(t => {
-        const moveTarget = t.excluded ? null : detectIOUMoveTarget(r, t);
-        const actions = t.excluded
-          ? `<button class="iou-basis-toggle" onclick="toggleIOUBasisExclude('${r.key}','${t.txnKey}')">Include</button>`
-          : `${moveTarget ? `<button class="iou-basis-toggle iou-basis-move" onclick="moveIOUBasisTxn('${r.key}','${t.txnKey}')">Move → ${moveTarget.monthLbl}</button>` : ''}
-             <button class="iou-basis-toggle" onclick="toggleIOUBasisExclude('${r.key}','${t.txnKey}')">Exclude</button>`;
+        // Available regardless of exclusion state — an already-excluded transaction is just
+        // sitting unlinked otherwise, with no way to move it without re-including it first.
+        const moveTarget = detectIOUMoveTarget(r, t);
+        const moveBtn = moveTarget
+          ? `<button class="iou-basis-toggle iou-basis-move" onclick="moveIOUBasisTxn('${r.key}','${t.txnKey}')">Move → ${moveTarget.monthLbl}</button>` : '';
+        const toggleBtn = `<button class="iou-basis-toggle" onclick="toggleIOUBasisExclude('${r.key}','${t.txnKey}')">${t.excluded?'Include':'Exclude'}</button>`;
+        const actions = `${moveBtn}${toggleBtn}`;
         return `<div class="iou-basis-row${t.excluded?' excluded':''}">
           <span>${t.date||'—'}</span>
           <span>${personLabel(t._uid)}</span>
