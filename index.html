@@ -629,7 +629,12 @@ select:focus{outline:none;border-color:var(--accent)}
   font-family: 'DM Mono', monospace; font-size: .68rem;
   text-transform: uppercase; letter-spacing: .06em; color: var(--text2);
 }
-.iou-tray-search-row { padding: 0 1.25rem 10px; }
+.iou-tray-search-row { padding: 0 1.25rem 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+.iou-tray-search-row .iou-search-input { flex: 1 1 220px; min-width: 160px; }
+.iou-search-select {
+  padding: .5rem .7rem; border: 1px solid var(--border2); border-radius: 8px;
+  font-family: 'DM Sans', sans-serif; font-size: .8rem; color: var(--text); background: var(--surface2);
+}
 .iou-tray-body {
   display: flex; gap: 10px; overflow-x: auto;
   padding: 0 1.25rem 14px;
@@ -651,6 +656,10 @@ select:focus{outline:none;border-color:var(--accent)}
   color: var(--text3); border: 1px solid var(--border2); border-radius: 10px; padding: 1px 6px;
 }
 .iou-chip-desc { color: var(--text2); font-size:.7rem; margin-top:2px; }
+.iou-chip-cat {
+  color: var(--text3); font-size:.62rem; margin-top:3px;
+  font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .03em;
+}
 .iou-tray-empty { padding: 10px 0; font-size: .78rem; color: var(--text3); }
 .iou-chip-ghost {
   position: fixed; z-index: 900; pointer-events: none;
@@ -1178,7 +1187,15 @@ select:focus{outline:none;border-color:var(--accent)}
     </div>
     <div class="iou-tray-search-row">
       <input type="text" id="iou-tray-search" class="iou-search-input"
-        placeholder="Search payments — Peter, Tony, description, amount…" oninput="filterIOUTray(this.value)">
+        placeholder="Search payments — description, amount…" oninput="renderIOUTrayChips()">
+      <select id="iou-tray-person-filter" class="iou-search-select" onchange="renderIOUTrayChips()">
+        <option value="">All people</option>
+        <option value="peter">Peter</option>
+        <option value="tony">Tony</option>
+      </select>
+      <select id="iou-tray-category-filter" class="iou-search-select" onchange="renderIOUTrayChips()">
+        <option value="">All categories</option>
+      </select>
     </div>
     <div class="iou-tray-body" id="iou-tray-body"></div>
   </div>
@@ -3873,7 +3890,6 @@ let _iouDataCache = { peter: {}, tony: {} };
 let _iouRowsCache = [];
 let _iouTrayCandidates = [];
 let _iouTrayCollapsed = false;
-let _iouTraySearchQuery = '';
 let _iouBlockSearchQuery = '';
 
 // Tag each of a month's category-matching transactions with a stable key (same scheme used by
@@ -4239,6 +4255,17 @@ function iouTxnRole(row, txn) {
   return 'reimbursement';
 }
 
+// Whose account the record lives in (txn._uid) isn't always who actually made the payment —
+// an incoming credit on the paying side (Peter's ledger showing Tony's transfer land) is really
+// Tony's payment, just recorded from the receiving end. Use this for attribution/labelling
+// wherever a reimbursement is displayed, so it credits the person who actually paid.
+function iouEffectivePayer(row, txn) {
+  if (!row.owedBy || !txn._uid) return txn._uid;
+  const onPayingSide = txn._uid === row.payerUid;
+  if (onPayingSide && txn.amount < 0) return row.owedBy; // Peter's incoming credit = Tony's payment
+  return txn._uid;
+}
+
 // A dragged transaction in the 'bill' role (whoever paid it, from their own outgoing record) is
 // linked as evidence only and doesn't affect the total. A 'reimbursement' role accumulates
 // toward settling the row — see resolveIOUSettlement for how much is actually required.
@@ -4248,14 +4275,16 @@ function linkIOURow(rowKey, txn) {
   const payments = loadIOUPayments();
   const entry = normalizeIOUEntry(payments[rowKey]);
 
-  const who = personLabel(txn._uid);
   const amt = Math.abs(txn.amount).toFixed(2);
 
   if (iouTxnRole(row, txn) === 'bill') {
+    const who = personLabel(txn._uid);
     entry.billLink = { txnKey: txn.txnKey, uid: txn._uid, date: txn.date, amount: txn.amount, description: txn.description };
     showCorrectionToast(`${who} paid $${amt} on ${txn.date||'—'}`);
   } else {
-    entry.reimbursements.push({ txnKey: txn.txnKey, uid: txn._uid, date: txn.date, amount: txn.amount, description: txn.description, at: new Date().toISOString() });
+    const payerUid = iouEffectivePayer(row, txn);
+    const who = personLabel(payerUid);
+    entry.reimbursements.push({ txnKey: txn.txnKey, uid: payerUid, date: txn.date, amount: txn.amount, description: txn.description, at: new Date().toISOString() });
     const { remaining, isSettled } = resolveIOUSettlement(row, entry);
     showCorrectionToast(isSettled ? `${who} paid $${amt} — settled ✓` : `${who} paid $${amt} — $${remaining.toFixed(2)} still owed`);
   }
@@ -4582,20 +4611,33 @@ function renderIOUTray(rows) {
   renderIOUTrayChips();
 }
 
-function filterIOUTray(query) {
-  _iouTraySearchQuery = query || '';
-  renderIOUTrayChips();
-}
-
 function renderIOUTrayChips() {
   const body  = document.getElementById('iou-tray-body');
   const title = document.getElementById('iou-tray-title');
-  const q = _iouTraySearchQuery.trim().toLowerCase();
-  const filtered = q
-    ? _iouTrayCandidates.filter(t => `${t.description||''} ${t.date||''} ${t.amount} ${t._uid||''}`.toLowerCase().includes(q))
-    : _iouTrayCandidates;
+  const searchEl = document.getElementById('iou-tray-search');
+  const personEl = document.getElementById('iou-tray-person-filter');
+  const catEl    = document.getElementById('iou-tray-category-filter');
 
-  title.textContent = q && filtered.length !== _iouTrayCandidates.length
+  // Category options depend on what's actually in the tray right now — rebuild each render,
+  // keeping the current selection if it's still a valid option.
+  if (catEl) {
+    const cats = [...new Set(_iouTrayCandidates.map(t => t.category).filter(Boolean))].sort();
+    const prevValue = catEl.value;
+    catEl.innerHTML = `<option value="">All categories</option>` + cats.map(c => `<option value="${c}">${c}</option>`).join('');
+    catEl.value = cats.includes(prevValue) ? prevValue : '';
+  }
+
+  const q = (searchEl?.value || '').trim().toLowerCase();
+  const personFilter = personEl?.value || '';
+  const catFilter = catEl?.value || '';
+
+  let filtered = _iouTrayCandidates;
+  if (personFilter) filtered = filtered.filter(t => t._uid === personFilter);
+  if (catFilter) filtered = filtered.filter(t => t.category === catFilter);
+  if (q) filtered = filtered.filter(t =>
+    `${t.description||''} ${t.date||''} ${t.amount} ${t._uid||''} ${t.category||''}`.toLowerCase().includes(q));
+
+  title.textContent = filtered.length !== _iouTrayCandidates.length
     ? `Payments (${filtered.length} of ${_iouTrayCandidates.length})`
     : `Payments (${_iouTrayCandidates.length})`;
 
@@ -4607,8 +4649,9 @@ function renderIOUTrayChips() {
           <span class="iou-chip-person">${t._uid === 'tony' ? 'Tony' : 'Peter'}</span>
         </div>
         <div class="iou-chip-desc">${t.description||'—'} · ${t.date||''}</div>
+        ${t.category ? `<div class="iou-chip-cat">${t.category}</div>` : ''}
       </div>`).join('')
-    : `<div class="iou-tray-empty">No payments match "${_iouTraySearchQuery}"</div>`;
+    : `<div class="iou-tray-empty">No payments match the current filters</div>`;
 
   attachIOUDragHandlers();
 }
@@ -4709,7 +4752,7 @@ Object.assign(window, {
   selectName, confirmOtherName, forgetUser,
   doLogin, doSignOut, togglePasswordVisibility,
   renderDashboard, refreshDashboard, renderHistory, refreshHistory, renderIOU, refreshIOU,
-  undoIOURow, toggleIOUTray, filterIOUBlocks, filterIOUTray, toggleIOUBasisExclude, moveIOUBasisTxn,
+  undoIOURow, toggleIOUTray, filterIOUBlocks, renderIOUTrayChips, toggleIOUBasisExclude, moveIOUBasisTxn,
   addCategory, removeCategory, removeCorrection, clearCorrections,
   openSplitModal, closeSplitModal, updateSplitA, updateSplitB, confirmSplit, unsplitTransaction,
   togglePreview,
