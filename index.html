@@ -1995,11 +1995,12 @@ function loadResults() {
       categorisedResults = parsed; // keep all for display
       currentMonthKey = groupKeys[groupKeys.length - 1]; // point to latest month
       (async () => {
+        let totalDuplicates = 0;
         for (const mk of groupKeys) {
           const prevKey = currentMonthKey;
           currentMonthKey = mk;
           categorisedResults = monthGroups[mk];
-          await _doSave();
+          totalDuplicates += (await _doSave()) || 0;
           currentMonthKey = prevKey;
         }
         // Restore to latest month for step 4 display
@@ -2008,7 +2009,8 @@ function loadResults() {
         buildStep4();
         const sc = document.getElementById('save-confirm');
         sc.style.display = 'inline';
-        sc.textContent = `✓ Saved ${groupKeys.length} months: ${groupKeys.map(k => monthLabel(k)).join(', ')}`;
+        sc.textContent = `✓ Saved ${groupKeys.length} months: ${groupKeys.map(k => monthLabel(k)).join(', ')}`
+          + (totalDuplicates ? ` (${totalDuplicates} duplicate${totalDuplicates>1?'s':''} skipped)` : '');
       })();
       switchInner('step4');
       // Show multi-month notice
@@ -2251,28 +2253,55 @@ function buildStep4() {
 
 async function autoSaveMonth() {
   if (!categorisedResults.length || !currentMonthKey) return;
-  await _doSave();
+  const duplicates = await _doSave();
+  if (duplicates) {
+    const sc = document.getElementById('save-confirm');
+    if (sc) sc.textContent = `✓ Auto-saved! (${duplicates} duplicate${duplicates>1?'s':''} skipped)`;
+  }
 }
 
 async function saveCurrentMonth() {
   if (!categorisedResults.length || !currentMonthKey) return;
-  await _doSave();
+  const duplicates = await _doSave();
   document.getElementById('save-confirm').style.display = 'inline';
-  document.getElementById('save-confirm').textContent = `✓ Saved for ${getCurrentUser()}!`;
+  document.getElementById('save-confirm').textContent = duplicates
+    ? `✓ Saved for ${getCurrentUser()}! (${duplicates} duplicate${duplicates>1?'s':''} skipped)`
+    : `✓ Saved for ${getCurrentUser()}!`;
+}
+
+// Duplicate = same date + description + amount already present for that month. Merging (not
+// replacing) matters because a CSV export often overlaps a previously-saved month — e.g. ASB's
+// May export including a stray 30/04 transaction — and saving that overlap should add to what's
+// already there instead of wiping the rest of the month out.
+function mergeMonthTransactions(existingTxns, newTxns) {
+  const dupeKey = t => `${t.date}|${t.description}|${t.amount}`;
+  const seen = new Set((existingTxns || []).map(dupeKey));
+  const merged = [...(existingTxns || [])];
+  let duplicates = 0;
+  newTxns.forEach(t => {
+    const k = dupeKey(t);
+    if (seen.has(k)) { duplicates++; return; }
+    seen.add(k);
+    merged.push(t);
+  });
+  return { merged, duplicates };
 }
 
 async function _doSave() {
   if (!categorisedResults.length || !currentMonthKey) return;
   const data = await loadAllData();
-  // Build summary object
-  const houseTotal = categorisedResults.filter(r=>r.sheet==='House').reduce((s,r)=>s+Math.abs(r.amount),0);
-  const tonyContrib = sumCat('Brother Transfer');
-  const pay = sumCat('Take Home Pay');
+  const existingTxns = data[currentMonthKey]?.transactions || [];
+  const { merged, duplicates } = mergeMonthTransactions(existingTxns, categorisedResults);
+
+  // Build summary object from the full merged list, not just this batch
+  const houseTotal = merged.filter(r=>r.sheet==='House').reduce((s,r)=>s+Math.abs(r.amount),0);
+  const tonyContrib = sumCat('Brother Transfer', merged);
+  const pay = sumCat('Take Home Pay', merged);
   const categories = {};
-  getAllCatsSync().forEach(c => { categories[c] = sumCat(c); });
+  getAllCatsSync().forEach(c => { categories[c] = sumCat(c, merged); });
   const investTotal = INVESTMENT_CAT_NAMES.reduce((s, c) => s + (categories[c] || 0), 0);
-  const personalSpend = categorisedResults.filter(r=>r.sheet==='Personal'&&!PERSONAL_SPEND_EXCLUDED.includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
-  const workTotal = categorisedResults.filter(r=>isWorkExpense(r)).reduce((s,r)=>s+Math.abs(r.amount),0);
+  const personalSpend = merged.filter(r=>r.sheet==='Personal'&&!PERSONAL_SPEND_EXCLUDED.includes(r.category)).reduce((s,r)=>s+Math.abs(r.amount),0);
+  const workTotal = merged.filter(r=>isWorkExpense(r)).reduce((s,r)=>s+Math.abs(r.amount),0);
   const houseShareSave = houseTotal / 2;
   const savings = pay - personalSpend - houseShareSave;
   const netPosition = savings + investTotal;
@@ -2282,7 +2311,7 @@ async function _doSave() {
     label: monthLabel(currentMonthKey),
     savedBy: getCurrentUser(),
     savedAt: new Date().toISOString(),
-    transactions: categorisedResults,
+    transactions: merged,
     summary: {
       houseTotal, tonyContrib, peterContrib: houseTotal - tonyContrib,
       pay, personalSpend, investTotal, workTotal, savings, netPosition, houseShare: houseShareSave,
@@ -2290,6 +2319,7 @@ async function _doSave() {
     }
   };
   await saveAllData(data, currentMonthKey);
+  return duplicates;
 }
 
 // ═══════════════════════════
