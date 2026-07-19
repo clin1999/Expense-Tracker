@@ -3985,6 +3985,15 @@ let _iouTrayCandidates = [];
 let _iouTrayCollapsed = false;
 let _iouBlockSearchQuery = '';
 
+// txnKey embeds the transaction's array index within its month, which shifts if anything earlier
+// in that same month is ever deleted (History's delete/split). A stored txnKey can silently stop
+// matching the same real transaction after that. contentKey has no such dependency — it's used
+// wherever "is this the same transaction I already linked/excluded?" actually needs to survive
+// edits, while txnKey (still handy as a same-render lookup id) stays index-based.
+function iouContentKey(uid, t) {
+  return `${uid}|${t.date}|${t.amount}|${(t.description||'').trim().toLowerCase()}`;
+}
+
 // Tag each of a month's category-matching transactions with a stable key (same scheme used by
 // the payments tray) so a specific one can be excluded from a row's total — e.g. a reimbursement
 // for an older month's bill that happens to be dated/logged into this month.
@@ -4008,13 +4017,17 @@ async function computeIOURows(peter, tony) {
       const pData = peter[mk], tData = tony[mk];
       const rowKey = iouKey(cfg.cat, mk);
       const excludeSet = new Set(normalizeIOUEntry(payments[rowKey]).excludedTxnKeys || []);
+      // Matches on either the old index-based key (already-stored exclusions) or the stable
+      // content-based one (everything excluded from now on), so a transaction's position
+      // shifting after a later delete elsewhere in the month can't quietly undo an exclusion.
+      const isExcluded = t => excludeSet.has(t.txnKey) || excludeSet.has(iouContentKey(t._uid, t));
 
       const pAll = taggedCatTxns(pData, cfg.cat, 'peter', mk);
       const tAll = taggedCatTxns(tData, cfg.cat, 'tony', mk);
       if (!pAll.length && !tAll.length) return; // no activity at all — nothing to show or review
 
-      const pPaid = pAll.filter(t => !excludeSet.has(t.txnKey)).reduce((s,t) => s + Math.abs(t.amount), 0);
-      const tPaid = tAll.filter(t => !excludeSet.has(t.txnKey)).reduce((s,t) => s + Math.abs(t.amount), 0);
+      const pPaid = pAll.filter(t => !isExcluded(t)).reduce((s,t) => s + Math.abs(t.amount), 0);
+      const tPaid = tAll.filter(t => !isExcluded(t)).reduce((s,t) => s + Math.abs(t.amount), 0);
 
       let owedAmount = 0, owedBy = null, fullAmount = 0, payerLabel = '';
       if (cfg.netMonthly) {
@@ -4038,7 +4051,7 @@ async function computeIOURows(peter, tony) {
       // basisTxns keeps EVERY category-matching transaction, excluded or not, so the verify
       // breakdown can show the full picture and let an excluded one be brought back.
       const basisTxns = [...pAll, ...tAll]
-        .map(t => ({ ...t, excluded: excludeSet.has(t.txnKey) }))
+        .map(t => ({ ...t, excluded: isExcluded(t) }))
         .sort((a,b) => (a.date||'').localeCompare(b.date||''));
       const includedTxns = basisTxns.filter(t => !t.excluded);
       const payerUid = owedBy === 'tony' ? 'peter' : owedBy === 'peter' ? 'tony' : null;
@@ -4274,12 +4287,28 @@ async function undoIOURow(key) {
 // Rejecting excludes it from this row's total only; it stays untouched everywhere else in the
 // app and remains draggable from the payments tray to link onto the row it actually belongs to.
 async function toggleIOUBasisExclude(rowKey, txnKey) {
+  const row = _iouRowsCache.find(r => r.key === rowKey);
+  const txn = row?.basisTxns.find(t => t.txnKey === txnKey);
+  if (!txn) return;
+
   const payments = await loadIOUPayments();
   const entry = normalizeIOUEntry(payments[rowKey]);
-  const idx = entry.excludedTxnKeys.indexOf(txnKey);
-  const nowExcluding = idx === -1;
-  if (nowExcluding) entry.excludedTxnKeys.push(txnKey);
-  else entry.excludedTxnKeys.splice(idx, 1);
+  const contentKey = iouContentKey(txn._uid, txn);
+
+  // Recognise either key form when checking/removing, since an existing exclusion may still be
+  // stored under the old index-based key — but always WRITE the stable content-key from here on.
+  const oldIdx = entry.excludedTxnKeys.indexOf(txnKey);
+  const newIdx = entry.excludedTxnKeys.indexOf(contentKey);
+  const nowExcluding = oldIdx === -1 && newIdx === -1;
+
+  if (nowExcluding) {
+    entry.excludedTxnKeys.push(contentKey);
+  } else {
+    if (oldIdx !== -1) entry.excludedTxnKeys.splice(oldIdx, 1);
+    const remainingIdx = entry.excludedTxnKeys.indexOf(contentKey);
+    if (remainingIdx !== -1) entry.excludedTxnKeys.splice(remainingIdx, 1);
+  }
+
   payments[rowKey] = entry;
   await saveIOUPayments(payments);
   showCorrectionToast(nowExcluding ? 'Excluded from this total' : 'Re-included in this total');
@@ -4325,7 +4354,10 @@ async function moveIOUBasisTxn(rowKey, txnKey) {
 
   const payments = await loadIOUPayments();
   const entry = normalizeIOUEntry(payments[rowKey]);
-  if (!entry.excludedTxnKeys.includes(txnKey)) entry.excludedTxnKeys.push(txnKey);
+  const contentKey = iouContentKey(txn._uid, txn);
+  if (!entry.excludedTxnKeys.includes(txnKey) && !entry.excludedTxnKeys.includes(contentKey)) {
+    entry.excludedTxnKeys.push(contentKey);
+  }
   payments[rowKey] = entry;
   await saveIOUPayments(payments);
 
@@ -4661,11 +4693,20 @@ function _scoreMatch(myTxn, target) {
 async function computePaymentCandidates(rows) {
   const payments = await loadIOUPayments();
 
+  // Both key forms so an already-linked transaction stays hidden from the tray even if its
+  // array position later shifted (a delete earlier in the same month) after it was linked.
   const usedTxnKeys = new Set();
+  const usedContentKeys = new Set();
   Object.values(payments).forEach(raw => {
     const entry = normalizeIOUEntry(raw);
-    if (entry.billLink?.txnKey) usedTxnKeys.add(entry.billLink.txnKey);
-    entry.reimbursements.forEach(r => r.txnKey && usedTxnKeys.add(r.txnKey));
+    if (entry.billLink) {
+      if (entry.billLink.txnKey) usedTxnKeys.add(entry.billLink.txnKey);
+      if (entry.billLink.uid) usedContentKeys.add(iouContentKey(entry.billLink.uid, entry.billLink));
+    }
+    entry.reimbursements.forEach(r => {
+      if (r.txnKey) usedTxnKeys.add(r.txnKey);
+      if (r.uid) usedContentKeys.add(iouContentKey(r.uid, r));
+    });
   });
 
   const outstanding = rows.filter(r => r.owedAmount > 0.005 && !resolveIOUSettlement(r, normalizeIOUEntry(payments[r.key])).isSettled);
@@ -4677,7 +4718,8 @@ async function computePaymentCandidates(rows) {
     Object.entries(data).forEach(([mk, md]) => {
       (md.transactions || []).forEach((t, i) => {
         const txnKey = `${uid}|${mk}|${i}|${t.date}|${t.amount}`;
-        if (!usedTxnKeys.has(txnKey)) allTxns.push({ ...t, _uid: uid, _mk: mk, _ml: md.label, txnKey });
+        if (usedTxnKeys.has(txnKey) || usedContentKeys.has(iouContentKey(uid, t))) return;
+        allTxns.push({ ...t, _uid: uid, _mk: mk, _ml: md.label, txnKey });
       });
     });
   });
