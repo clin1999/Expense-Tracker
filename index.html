@@ -558,6 +558,11 @@ select:focus{outline:none;border-color:var(--accent)}
   width: 100%; padding: .55rem .9rem; border: 1px solid var(--border2); border-radius: 8px;
   font-family: 'DM Sans', sans-serif; font-size: .82rem; color: var(--text); background: var(--surface2);
 }
+.detail-search-input {
+  padding: .4rem .75rem; border: 1px solid var(--border2); border-radius: 8px;
+  font-family: 'DM Sans', sans-serif; font-size: .78rem; color: var(--text); background: var(--surface2);
+  flex: 1 1 220px; min-width: 160px; max-width: 320px;
+}
 .iou-block-row {
   display: grid;
   grid-template-columns: 90px 1fr 130px 32px;
@@ -1136,7 +1141,11 @@ select:focus{outline:none;border-color:var(--accent)}
     </div>
 
     <div class="card">
-      <div class="card-label" style="margin-bottom:.75rem">All transactions</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem">
+        <div class="card-label" style="margin-bottom:0">All transactions</div>
+        <input type="text" id="detail-txn-search" class="detail-search-input"
+          placeholder="Search description, category, amount…" oninput="filterDetailTxnTable(this.value)">
+      </div>
       <div id="detail-txn-table" style="max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>
     </div>
   </div>
@@ -3209,14 +3218,50 @@ async function viewMonthDetail(key) {
   });
 }
 
+let _detailTxnCache = { key: null, txns: [] };
+let _detailTxnSearchQuery = '';
+
 async function renderDetailTxnTable(key) {
   const data = await loadAllData();
-  const txns = data[key]?.transactions || [];
+  // Tag with the ORIGINAL array index before any filtering — every edit/split/delete handler
+  // below addresses a transaction by its position in data[key].transactions, so a filtered
+  // view must keep using that original position, not wherever it lands in the filtered list.
+  const txns = (data[key]?.transactions || []).map((t, i) => ({ ...t, _origIndex: i }));
+
+  if (_detailTxnCache.key !== key) {
+    _detailTxnSearchQuery = '';
+    const searchEl = document.getElementById('detail-txn-search');
+    if (searchEl) searchEl.value = '';
+  }
+  _detailTxnCache = { key, txns };
+  renderDetailTxnRows();
+}
+
+function filterDetailTxnTable(query) {
+  _detailTxnSearchQuery = query || '';
+  renderDetailTxnRows();
+}
+
+function renderDetailTxnRows() {
+  const { key, txns: allTxns } = _detailTxnCache;
+  if (!key) return;
+
+  const q = _detailTxnSearchQuery.trim().toLowerCase();
+  const txns = q
+    ? allTxns.filter(r => `${r.description||''} ${r.category||''} ${r.sheet||''} ${r.date||''} $${Math.abs(r.amount).toFixed(2)}`.toLowerCase().includes(q))
+    : allTxns;
+
   let thtml = `<div class="result-row result-header" style="grid-template-columns:68px 1fr 80px 138px 70px 80px">
     <span>Date</span><span>Description</span><span>Amount</span>
     <span class="hide-mobile">Category</span><span class="hide-mobile">Sheet</span><span class="hide-mobile"></span>
   </div>`;
-  txns.forEach((r, i) => {
+
+  if (!txns.length) {
+    thtml += `<div style="padding:1rem;text-align:center;font-size:.8rem;color:var(--text3)">No transactions match "${_detailTxnSearchQuery}"</div>`;
+  }
+
+  txns.forEach(r => {
+    const i = r._origIndex;
     const isIncome = r.amount < 0;
     const isSplit = r._splitFrom !== undefined;
     thtml += `<div class="result-row" style="grid-template-columns:68px 1fr 80px 138px 70px 80px;${isSplit?'background:var(--accent-l);':''}">
@@ -4793,7 +4838,7 @@ Object.assign(window, {
   updateResultCat, deleteResultRow,
   selectCatMonth, selectHouseCatMonth, selectPersonalCatMonth, selectWorkReimbTab,
   switchDashTab, toggleReimb, saveUsage, loadUsageForMonth, handleInvoiceFile,
-  deleteMonth, closeDetail, viewMonthDetail, updateDetailCatInPlace,
+  deleteMonth, closeDetail, viewMonthDetail, updateDetailCatInPlace, filterDetailTxnTable,
   openDetailSplitModal, unsplitDetailTransaction, deleteDetailRow,
   selectName, confirmOtherName, forgetUser,
   doLogin, doSignOut, togglePasswordVisibility,
