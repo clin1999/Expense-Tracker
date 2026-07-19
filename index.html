@@ -3329,6 +3329,7 @@ async function openDetailSplitModal(key, idx) {
   window._detailSplitIdx = idx;
 
   const total = Math.abs(r.amount);
+  _splitTotal = total;
   const cats = getAllCatsSync();
   const optionsHtml = cats.map(c => `<option value="${c}">${c}</option>`).join('');
   const defaultCatB = r.category === 'Wifi' ? '2degrees Mobile' : r.category === '2degrees Mobile' ? 'Wifi' : cats[0];
@@ -3588,11 +3589,13 @@ function forgetUser() { doSignOut(); }
 // SPLIT TRANSACTION
 // ═══════════════════════════
 let _splitIdx = null;
+let _splitTotal = 0; // the amount being split — set whenever either split modal opens
 
 function openSplitModal(idx) {
   _splitIdx = idx;
   const r = categorisedResults[idx];
   const total = Math.abs(r.amount);
+  _splitTotal = total;
   const cats = getAllCatsSync();
   const optionsHtml = cats.map(c => `<option value="${c}">${c}</option>`).join('');
 
@@ -3620,18 +3623,17 @@ function closeSplitModal() {
   _splitIdx = null;
 }
 
+// _splitTotal is set once when either split modal opens (openSplitModal for Categorise,
+// openDetailSplitModal for History) — using it here instead of re-deriving from
+// categorisedResults[_splitIdx] means the auto-calc works for both flows, not just Categorise's.
 function updateSplitB() {
-  const r = categorisedResults[_splitIdx];
-  const total = Math.abs(r.amount);
   const a = parseFloat(document.getElementById('split-amount-a').value) || 0;
-  document.getElementById('split-amount-b').value = Math.max(0, total - a).toFixed(2);
+  document.getElementById('split-amount-b').value = Math.max(0, _splitTotal - a).toFixed(2);
 }
 
 function updateSplitA() {
-  const r = categorisedResults[_splitIdx];
-  const total = Math.abs(r.amount);
   const b = parseFloat(document.getElementById('split-amount-b').value) || 0;
-  document.getElementById('split-amount-a').value = Math.max(0, total - b).toFixed(2);
+  document.getElementById('split-amount-a').value = Math.max(0, _splitTotal - b).toFixed(2);
 }
 
 async function confirmSplit() {
