@@ -3994,6 +3994,26 @@ function iouContentKey(uid, t) {
   return `${uid}|${t.date}|${t.amount}|${(t.description||'').trim().toLowerCase()}`;
 }
 
+// How much of a real transaction has already been committed as a REIMBURSEMENT across all rows
+// (bill-evidence links don't consume budget — the same statement can document more than one row
+// without limit). Reimbursement records store the ORIGINAL transaction's amount separately
+// (origAmount) from the portion actually applied (amount), since one payment can settle more
+// than one row — e.g. a combined catch-up payment covering two months' bills at once.
+function iouAllocatedAmount(payments, uid, txn) {
+  const contentKey = iouContentKey(uid, txn);
+  let total = 0;
+  Object.values(payments).forEach(raw => {
+    const entry = normalizeIOUEntry(raw);
+    entry.reimbursements.forEach(r => {
+      const rTxnUid = r.txnUid || r.uid; // old records never separated the two
+      if (rTxnUid !== uid) return;
+      const basis = { date: r.date, amount: r.origAmount != null ? r.origAmount : r.amount, description: r.description };
+      if (r.txnKey === txn.txnKey || iouContentKey(uid, basis) === contentKey) total += Math.abs(r.amount || 0);
+    });
+  });
+  return total;
+}
+
 // Tag each of a month's category-matching transactions with a stable key (same scheme used by
 // the payments tray) so a specific one can be excluded from a row's total — e.g. a reimbursement
 // for an older month's bill that happens to be dated/logged into this month.
@@ -4400,18 +4420,51 @@ async function linkIOURow(rowKey, txn) {
   const payments = await loadIOUPayments();
   const entry = normalizeIOUEntry(payments[rowKey]);
 
-  const amt = Math.abs(txn.amount).toFixed(2);
-
   if (iouTxnRole(row, txn) === 'bill') {
     const who = personLabel(txn._uid);
     entry.billLink = { txnKey: txn.txnKey, uid: txn._uid, date: txn.date, amount: txn.amount, description: txn.description };
-    showCorrectionToast(`${who} paid $${amt} on ${txn.date||'—'}`);
+    showCorrectionToast(`${who} paid $${Math.abs(txn.amount).toFixed(2)} on ${txn.date||'—'}`);
   } else {
     const payerUid = iouEffectivePayer(row, txn);
+    const fullAmount = Math.abs(txn.amount);
+    const alreadyAllocated = iouAllocatedAmount(payments, txn._uid, txn);
+    const remainingAvailable = Math.max(0, fullAmount - alreadyAllocated);
+    if (remainingAvailable <= 0.005) {
+      showCorrectionToast('This payment has already been fully applied elsewhere');
+      return;
+    }
+
+    const rowRemainingOwed = resolveIOUSettlement(row, entry).remaining || row.owedAmount;
+    let allocated = Math.min(remainingAvailable, rowRemainingOwed);
+
+    // Only ask when applying the suggested amount would leave some of this payment unused — a
+    // sign it might be a combined payment covering more than just this one row (e.g. a catch-up
+    // payment for two months' bills at once). Otherwise it's the common case: just apply it.
+    if (remainingAvailable - allocated > 0.01) {
+      const already = alreadyAllocated > 0.01 ? ` of $${fullAmount.toFixed(2)} total` : '';
+      const input = prompt(
+        `This payment has $${remainingAvailable.toFixed(2)}${already} available. How much should apply to this row? ($${rowRemainingOwed.toFixed(2)} owed here)`,
+        allocated.toFixed(2)
+      );
+      if (input === null) return; // cancelled — link nothing
+      const parsed = parseFloat(input);
+      if (isNaN(parsed) || parsed <= 0) { showCorrectionToast('Enter a valid amount'); return; }
+      allocated = Math.min(parsed, remainingAvailable);
+    }
+
     const who = personLabel(payerUid);
-    entry.reimbursements.push({ txnKey: txn.txnKey, uid: payerUid, date: txn.date, amount: txn.amount, description: txn.description, at: new Date().toISOString() });
+    entry.reimbursements.push({
+      txnKey: txn.txnKey, txnUid: txn._uid, uid: payerUid,
+      date: txn.date, description: txn.description,
+      origAmount: fullAmount, amount: allocated,
+      at: new Date().toISOString(),
+    });
     const { remaining, isSettled } = resolveIOUSettlement(row, entry);
-    showCorrectionToast(isSettled ? `${who} paid $${amt} — settled ✓` : `${who} paid $${amt} — $${remaining.toFixed(2)} still owed`);
+    const leftover = remainingAvailable - allocated;
+    const leftoverNote = leftover > 0.01 ? ` — $${leftover.toFixed(2)} of this payment still available for another row` : '';
+    showCorrectionToast(isSettled
+      ? `${who} paid $${allocated.toFixed(2)} — settled ✓${leftoverNote}`
+      : `${who} paid $${allocated.toFixed(2)} — $${remaining.toFixed(2)} still owed${leftoverNote}`);
   }
 
   payments[rowKey] = entry;
@@ -4693,33 +4746,26 @@ function _scoreMatch(myTxn, target) {
 async function computePaymentCandidates(rows) {
   const payments = await loadIOUPayments();
 
-  // Both key forms so an already-linked transaction stays hidden from the tray even if its
-  // array position later shifted (a delete earlier in the same month) after it was linked.
-  const usedTxnKeys = new Set();
-  const usedContentKeys = new Set();
-  Object.values(payments).forEach(raw => {
-    const entry = normalizeIOUEntry(raw);
-    if (entry.billLink) {
-      if (entry.billLink.txnKey) usedTxnKeys.add(entry.billLink.txnKey);
-      if (entry.billLink.uid) usedContentKeys.add(iouContentKey(entry.billLink.uid, entry.billLink));
-    }
-    entry.reimbursements.forEach(r => {
-      if (r.txnKey) usedTxnKeys.add(r.txnKey);
-      if (r.uid) usedContentKeys.add(iouContentKey(r.uid, r));
-    });
-  });
-
   const outstanding = rows.filter(r => r.owedAmount > 0.005 && !resolveIOUSettlement(r, normalizeIOUEntry(payments[r.key])).isSettled);
   if (!outstanding.length) return [];
 
+  // Reimbursements consume budget — a payment that covers more than one row's worth stays in the
+  // tray (showing what's left) until fully allocated, so it can be dragged onto a second row too.
+  // Bill-evidence links have NO such limit: they're pure documentation, not money being spent, so
+  // the same combined bill payment (covering two months' billing periods) can be linked as
+  // evidence to as many rows as apply, with no exclusion after the first use.
   const allTxns = [];
   ['peter', 'tony'].forEach(uid => {
     const data = _iouDataCache[uid] || {};
     Object.entries(data).forEach(([mk, md]) => {
       (md.transactions || []).forEach((t, i) => {
         const txnKey = `${uid}|${mk}|${i}|${t.date}|${t.amount}`;
-        if (usedTxnKeys.has(txnKey) || usedContentKeys.has(iouContentKey(uid, t))) return;
-        allTxns.push({ ...t, _uid: uid, _mk: mk, _ml: md.label, txnKey });
+
+        const fullAmount = Math.abs(t.amount);
+        const remaining = fullAmount - iouAllocatedAmount(payments, uid, t);
+        if (remaining <= 0.01) return;
+
+        allTxns.push({ ...t, _uid: uid, _mk: mk, _ml: md.label, txnKey, _remaining: remaining, _fullAmount: fullAmount });
       });
     });
   });
@@ -4727,8 +4773,10 @@ async function computePaymentCandidates(rows) {
   return allTxns
     .map(t => {
       const bestScore = outstanding.reduce((best, r) => {
-        const target = iouTxnRole(r, t) === 'bill' ? r.fullAmount : r.owedAmount;
-        return Math.max(best, _scoreMatch(t, { amount: target, date: r.basisDate, category: r.cat }));
+        const isBill = iouTxnRole(r, t) === 'bill';
+        const target = isBill ? r.fullAmount : r.owedAmount;
+        const scoringTxn = isBill ? t : { ...t, amount: t._remaining };
+        return Math.max(best, _scoreMatch(scoringTxn, { amount: target, date: r.basisDate, category: r.cat }));
       }, 0);
       return { t, bestScore };
     })
@@ -4777,15 +4825,18 @@ function renderIOUTrayChips() {
     : `Payments (${_iouTrayCandidates.length})`;
 
   body.innerHTML = filtered.length
-    ? filtered.map(t => `
-      <div class="iou-chip" data-txnkey="${t.txnKey}">
-        <div class="iou-chip-top">
-          <span class="iou-chip-amount">$${Math.abs(t.amount).toFixed(2)}</span>
-          <span class="iou-chip-person">${t._uid === 'tony' ? 'Tony' : 'Peter'}</span>
-        </div>
-        <div class="iou-chip-desc">${t.description||'—'} · ${t.date||''}</div>
-        ${t.category ? `<div class="iou-chip-cat">${t.category}</div>` : ''}
-      </div>`).join('')
+    ? filtered.map(t => {
+        const remaining = t._remaining ?? Math.abs(t.amount);
+        const isPartial = t._fullAmount != null && t._fullAmount - remaining > 0.01;
+        return `<div class="iou-chip" data-txnkey="${t.txnKey}">
+          <div class="iou-chip-top">
+            <span class="iou-chip-amount">$${remaining.toFixed(2)}</span>
+            <span class="iou-chip-person">${t._uid === 'tony' ? 'Tony' : 'Peter'}</span>
+          </div>
+          <div class="iou-chip-desc">${t.description||'—'} · ${t.date||''}</div>
+          ${isPartial ? `<div class="iou-chip-cat">of $${t._fullAmount.toFixed(2)} — partly used</div>` : t.category ? `<div class="iou-chip-cat">${t.category}</div>` : ''}
+        </div>`;
+      }).join('')
     : `<div class="iou-tray-empty">No payments match the current filters</div>`;
 
   attachIOUDragHandlers();
@@ -4834,8 +4885,10 @@ function positionIOUGhost(ghost, x, y) {
 // target applies to this row for this transaction's owner — the bill total if they're on the
 // paying side, or the owed share if they're on the owing side.
 function iouDragLooksGood(row, txn) {
-  const target = iouTxnRole(row, txn) === 'bill' ? row.fullAmount : row.owedAmount;
-  return _scoreMatch(txn, { amount: target, date: row.basisDate, category: row.cat }) >= 40;
+  const isBill = iouTxnRole(row, txn) === 'bill';
+  const target = isBill ? row.fullAmount : row.owedAmount;
+  const scoringTxn = isBill ? txn : { ...txn, amount: txn._remaining ?? Math.abs(txn.amount) };
+  return _scoreMatch(scoringTxn, { amount: target, date: row.basisDate, category: row.cat }) >= 40;
 }
 
 function onIOUDragMove(e) {
