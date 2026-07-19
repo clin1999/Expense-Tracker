@@ -1649,6 +1649,10 @@ async function showPage(p) {
   if (p === 'settings') await renderSettings();
   if (p === 'iou') { await renderIOU(); }
   if (p === 'formulae') renderFormulaeReference();
+  // Step 4's category dropdowns are built once from getAllCatsSync() and never re-rendered on
+  // their own — rebuild them on navigation so a category just added in Settings shows up here
+  // without redoing the whole categorisation flow.
+  if (p === 'categorise' && categorisedResults.length) buildStep4();
 }
 
 function switchInner(s) {
@@ -3057,6 +3061,7 @@ async function refreshIOU() {
   btn.disabled = true;
   icon.style.animation = 'spin .7s linear infinite';
   _cache = {};
+  invalidateIOUPaymentsCache();
   await renderIOU();
   icon.style.animation = '';
   btn.disabled = false;
@@ -3511,6 +3516,7 @@ async function doSignOut() {
   if (!confirm('Sign out?')) return;
   _cache = {};
   invalidateCategoriesCache();
+  invalidateIOUPaymentsCache();
   _currentAuthUser = null;
   await signOut(auth);
   updateUserPill('');
@@ -3860,12 +3866,52 @@ async function clearCorrections() {
 // ═══════════════════════════
 // IOU TAB
 // ═══════════════════════════
-const IOU_STORAGE_KEY = 'pakaraka_iou_payments';
+// Shared across both accounts — settling something on one device should show up on the other.
+const IOU_STORAGE_KEY = 'pakaraka_iou_payments'; // legacy localStorage key, used for one-time migration only
+const IOU_PAYMENTS_MIGRATED_FLAG = 'pakaraka_iou_migrated_v1';
+function iouPaymentsRef() { return doc(db, 'shared', 'iou_payments'); }
 
-function loadIOUPayments() {
-  try { return JSON.parse(localStorage.getItem(IOU_STORAGE_KEY)) || {}; } catch { return {}; }
+let _iouPaymentsCache = null;
+function invalidateIOUPaymentsCache() { _iouPaymentsCache = null; }
+
+async function loadIOUPayments() {
+  if (_iouPaymentsCache) return _iouPaymentsCache;
+  try {
+    const snap = await getDoc(iouPaymentsRef());
+    let payments = snap.exists() ? (snap.data().payments || {}) : {};
+
+    // One-time per-browser migration: fold in anything saved locally before IOU settlement data
+    // moved to Firestore, so switching devices (or just being the second device to load this
+    // update) doesn't silently drop existing linked payments. Only fills in rows Firestore
+    // doesn't already have, so it can't resurrect something legitimately undone elsewhere.
+    if (!localStorage.getItem(IOU_PAYMENTS_MIGRATED_FLAG)) {
+      let legacy = {};
+      try { legacy = JSON.parse(localStorage.getItem(IOU_STORAGE_KEY) || '{}'); } catch (_) {}
+      let changed = false;
+      Object.keys(legacy).forEach(k => {
+        if (!payments[k]) { payments[k] = legacy[k]; changed = true; }
+      });
+      if (changed) await setDoc(iouPaymentsRef(), { payments });
+      localStorage.setItem(IOU_PAYMENTS_MIGRATED_FLAG, '1');
+    }
+
+    _iouPaymentsCache = payments;
+  } catch (e) {
+    console.error('IOU payments load error:', e);
+    _iouPaymentsCache = _iouPaymentsCache || {};
+  }
+  return _iouPaymentsCache;
 }
-function saveIOUPayments(p) { localStorage.setItem(IOU_STORAGE_KEY, JSON.stringify(p)); }
+
+async function saveIOUPayments(p) {
+  _iouPaymentsCache = p; // optimistic — UI stays correct even before the write resolves
+  try {
+    await setDoc(iouPaymentsRef(), { payments: p });
+  } catch (e) {
+    console.error('IOU payments save error:', e);
+    showCorrectionToast('⚠ Save failed — check connection');
+  }
+}
 
 // IOU payment key: category_monthKey e.g. "Electricity_2026-03"
 function iouKey(cat, monthKey) { return `${cat}__${monthKey}`; }
@@ -3905,9 +3951,9 @@ function taggedCatTxns(monthData, cat, uid, mk) {
 // fullAmount = the larger of the two people's contributions, i.e. "the bill" — used both to
 // optionally link the original expense as evidence, and to recognise when a reimbursement was
 // clearly meant to cover the whole thing rather than just the usual half share.
-function computeIOURows(peter, tony) {
+async function computeIOURows(peter, tony) {
   const allKeys = [...new Set([...sortedKeys(peter), ...sortedKeys(tony)])].sort();
-  const payments = loadIOUPayments();
+  const payments = await loadIOUPayments();
   const rows = [];
 
   SHARED_EXPENSE_CATEGORIES.forEach(cfg => {
@@ -3998,15 +4044,15 @@ async function renderIOU() {
   document.getElementById('iou-empty').style.display = 'none';
   document.getElementById('iou-content').style.display = 'block';
 
-  const rows = computeIOURows(peter, tony);
+  const rows = await computeIOURows(peter, tony);
   _iouRowsCache = rows;
-  renderIOUBanner(rows);
-  renderIOUBlocks(rows);
-  renderIOUTray(rows);
+  await renderIOUBanner(rows);
+  await renderIOUBlocks(rows);
+  await renderIOUTray(rows);
 }
 
-function renderIOUBanner(rows) {
-  const payments = loadIOUPayments();
+async function renderIOUBanner(rows) {
+  const payments = await loadIOUPayments();
   let tonyOwesPeter = 0, peterOwesTony = 0;
   rows.forEach(r => {
     if (r.owedAmount <= 0.005) return;
@@ -4032,13 +4078,13 @@ function renderIOUBanner(rows) {
   }
 }
 
-function filterIOUBlocks(query) {
+async function filterIOUBlocks(query) {
   _iouBlockSearchQuery = query || '';
-  renderIOUBlocks(_iouRowsCache);
+  await renderIOUBlocks(_iouRowsCache);
 }
 
-function renderIOUBlocks(rows) {
-  const payments = loadIOUPayments();
+async function renderIOUBlocks(rows) {
+  const payments = await loadIOUPayments();
   const container = document.getElementById('iou-blocks');
   const q = _iouBlockSearchQuery.trim().toLowerCase();
 
@@ -4168,29 +4214,29 @@ function buildIOURowHtml(r, payments) {
   </div>`;
 }
 
-function undoIOURow(key) {
-  const payments = loadIOUPayments();
+async function undoIOURow(key) {
+  const payments = await loadIOUPayments();
   delete payments[key];
-  saveIOUPayments(payments);
+  await saveIOUPayments(payments);
   showCorrectionToast('Linked payments cleared');
-  renderIOU();
+  await renderIOU();
 }
 
 // Accept/reject a transaction that the auto-calculated category total picked up for this row —
 // e.g. a reimbursement for an older month's bill that happens to be dated into this one.
 // Rejecting excludes it from this row's total only; it stays untouched everywhere else in the
 // app and remains draggable from the payments tray to link onto the row it actually belongs to.
-function toggleIOUBasisExclude(rowKey, txnKey) {
-  const payments = loadIOUPayments();
+async function toggleIOUBasisExclude(rowKey, txnKey) {
+  const payments = await loadIOUPayments();
   const entry = normalizeIOUEntry(payments[rowKey]);
   const idx = entry.excludedTxnKeys.indexOf(txnKey);
   const nowExcluding = idx === -1;
   if (nowExcluding) entry.excludedTxnKeys.push(txnKey);
   else entry.excludedTxnKeys.splice(idx, 1);
   payments[rowKey] = entry;
-  saveIOUPayments(payments);
+  await saveIOUPayments(payments);
   showCorrectionToast(nowExcluding ? 'Excluded from this total' : 'Re-included in this total');
-  renderIOU();
+  await renderIOU();
 }
 
 const IOU_MONTH_ABBR = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
@@ -4219,7 +4265,7 @@ function detectIOUMoveTarget(row, txn) {
 // Excludes the transaction from this row's total and links it to the detected target row in one
 // action — after an explicit confirm, since the month detection is just a text match and could
 // be wrong (e.g. a description mentioning a month for an unrelated reason).
-function moveIOUBasisTxn(rowKey, txnKey) {
+async function moveIOUBasisTxn(rowKey, txnKey) {
   const row = _iouRowsCache.find(r => r.key === rowKey);
   if (!row) return;
   const txn = row.basisTxns.find(t => t.txnKey === txnKey);
@@ -4230,13 +4276,13 @@ function moveIOUBasisTxn(rowKey, txnKey) {
   const ok = confirm(`Move "${txn.description||'this payment'}" ($${Math.abs(txn.amount).toFixed(2)} on ${txn.date||'—'}) to ${target.label} — ${target.monthLbl} instead?\n\nIt will be excluded from ${row.monthLbl}'s total here and linked as a payment there.`);
   if (!ok) return;
 
-  const payments = loadIOUPayments();
+  const payments = await loadIOUPayments();
   const entry = normalizeIOUEntry(payments[rowKey]);
   if (!entry.excludedTxnKeys.includes(txnKey)) entry.excludedTxnKeys.push(txnKey);
   payments[rowKey] = entry;
-  saveIOUPayments(payments);
+  await saveIOUPayments(payments);
 
-  linkIOURow(target.key, txn); // reuses the same role-aware linking, save, toast, and re-render
+  await linkIOURow(target.key, txn); // reuses the same role-aware linking, save, toast, and re-render
 }
 
 // Which role a dragged transaction plays for this row: 'bill' (evidence only, doesn't affect
@@ -4269,10 +4315,10 @@ function iouEffectivePayer(row, txn) {
 // A dragged transaction in the 'bill' role (whoever paid it, from their own outgoing record) is
 // linked as evidence only and doesn't affect the total. A 'reimbursement' role accumulates
 // toward settling the row — see resolveIOUSettlement for how much is actually required.
-function linkIOURow(rowKey, txn) {
+async function linkIOURow(rowKey, txn) {
   const row = _iouRowsCache.find(r => r.key === rowKey);
   if (!row) return;
-  const payments = loadIOUPayments();
+  const payments = await loadIOUPayments();
   const entry = normalizeIOUEntry(payments[rowKey]);
 
   const amt = Math.abs(txn.amount).toFixed(2);
@@ -4290,8 +4336,8 @@ function linkIOURow(rowKey, txn) {
   }
 
   payments[rowKey] = entry;
-  saveIOUPayments(payments);
-  renderIOU();
+  await saveIOUPayments(payments);
+  await renderIOU();
 }
 
 // ═══════════════════════════
@@ -4565,8 +4611,8 @@ function _scoreMatch(myTxn, target) {
 // Candidate "payments" for the tray: transactions from EITHER person that look like a plausible
 // link — either the reimbursement (from the owing side) or the original bill (from the paying
 // side) — for at least one currently-outstanding row. Already-linked transactions are excluded.
-function computePaymentCandidates(rows) {
-  const payments = loadIOUPayments();
+async function computePaymentCandidates(rows) {
+  const payments = await loadIOUPayments();
 
   const usedTxnKeys = new Set();
   Object.values(payments).forEach(raw => {
@@ -4602,8 +4648,8 @@ function computePaymentCandidates(rows) {
     .map(c => c.t);
 }
 
-function renderIOUTray(rows) {
-  _iouTrayCandidates = computePaymentCandidates(rows);
+async function renderIOUTray(rows) {
+  _iouTrayCandidates = await computePaymentCandidates(rows);
   const tray = document.getElementById('iou-tray');
   if (!_iouTrayCandidates.length) { tray.style.display = 'none'; return; }
   tray.style.display = 'block';
@@ -4775,6 +4821,7 @@ onAuthStateChanged(auth, async (user) => {
     if (btn) { btn.disabled = false; btn.textContent = 'Sign in'; }
     await migrateLegacyTonyData();
     invalidateCategoriesCache();
+    invalidateIOUPaymentsCache();
     await loadCategories();
     updatePersonalCategoryLabels();
     await renderDashboard();
@@ -4782,6 +4829,7 @@ onAuthStateChanged(auth, async (user) => {
     _currentAuthUser = null;
     _cache = {};
     invalidateCategoriesCache();
+    invalidateIOUPaymentsCache();
     showLoginScreen();
   }
 });
